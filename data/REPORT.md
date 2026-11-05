@@ -111,5 +111,9 @@ All-electron orbitals as solid lines, pseudo-orbitals as open symbols; the verti
 
 ![log derivatives](fig_logderiv.png)
 
-All-electron curves solid, pseudo curves dotted, one colour per angular momentum channel. Pole correspondence is in the table above, not marked on the figure.
+All-electron curves solid, pseudo curves dotted, one colour per angular momentum channel; `|L|` on a logarithmic axis, so a pole is an upward spike and a zero a downward one. Pole correspondence is in the table above, not marked on the figure.
+
+![projectors](fig_projectors.png)
+
+The six radial projector functions `beta(r)`, coloured by angular momentum (the two channels with two projectors, `l = 0` and `l = 1`, use a solid and a dashed line), amplitude in arbitrary units.
 

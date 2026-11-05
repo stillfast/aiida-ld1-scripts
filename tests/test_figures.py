@@ -41,6 +41,16 @@ def write_run(directory: Path) -> Path:
         + ''.join(f'{x:20.12f}{a * 0.8 if x < 1.5 else a:20.12f}'
                   f'{b * 0.8 if x < 1.5 else b:20.12f}{-a:20.12f}{-b:20.12f}\n'
                   for x, a, b in zip(r, s, f)), encoding='utf-8')
+    # U.beta: six projector columns, the last one a second 6P (as in the real recipe);
+    # the columns die out beyond ~3 bohr so the x range must be cut there
+    beta_labels = ['6S', '7S', '6P', '6D', '5F', '6P']
+    beta = np.stack([np.exp(-(1.0 + 0.3 * k) * r) * (1.0 + 0.1 * k)
+                     for k in range(len(beta_labels))], axis=1)
+    (directory / 'U.beta').write_text(
+        '#            r' + ''.join(f'{label:>20s}' for label in beta_labels) + '\n'
+        + ''.join(f'{x:20.12f}' + ''.join(f'{v:20.12f}' for v in row) + '\n'
+                  for x, row in zip(r, beta)), encoding='utf-8')
+
     # dlog: a pole for l=0 near -0.3 Ry (sign flip with |L| > 20), smooth otherwise
     energy = np.round(np.arange(-3.0, 3.01, 0.1), 10)
     l0 = np.where(energy < -0.3, 60.0, -60.0) + 0.01 * energy
@@ -262,7 +272,8 @@ def test_the_shipped_configuration_is_what_we_think_it_is(monkeypatch, tmp_path)
     monkeypatch.setattr(report_module, '_save', fake_save)
     written = report_module.make_figures(summary, directory, tmp_path / 'data')
 
-    assert sorted(captured) == ['fig_logderiv', 'fig_radial', 'fig_radial_logx']
+    assert sorted(captured) == ['fig_logderiv', 'fig_projectors', 'fig_radial',
+                                'fig_radial_logx']
     assert sorted(Path(path).stem for path in written) == sorted(captured)
     linear = captured['fig_radial'].axes[0]
     assert (linear.get_xscale(), linear.get_yscale()) == ('linear', 'linear')
@@ -270,3 +281,54 @@ def test_the_shipped_configuration_is_what_we_think_it_is(monkeypatch, tmp_path)
     assert (logx.get_xscale(), logx.get_yscale()) == ('log', 'linear')
     assert logx.get_xlim() == pytest.approx((0.01, 100.0))
     assert any(line.get_linestyle() == '--' for line in logx.get_lines())
+    # the repository diagnostic of the log derivative is on a logarithmic |L|
+    derivative = captured['fig_logderiv'].axes[0]
+    assert derivative.get_yscale() == 'log'
+    assert derivative.get_ylabel().startswith('$|L_l(E)|$')
+    assert derivative.get_xscale() == 'linear'
+    # and the projector figure is there, six curves in one panel
+    projectors = captured['fig_projectors'].axes[0]
+    assert projectors.get_title() == ''
+    curves = [line for line in projectors.get_lines()
+              if line.get_linestyle() in ('-', '--') and len(set(line.get_xdata())) > 2]
+    assert len(curves) == 6
+    assert sum(1 for line in curves if line.get_linestyle() == '--') == 2
+
+
+def test_the_projector_figure_colours_by_l_and_disambiguates_the_second_6P(captured):
+    """Six curves, one colour per l, the two repeated labels told apart."""
+    render, _plt = captured
+    figure, renderer, Text = render('figure_projectors')
+    axes = figure.axes[0]
+    drawn = [line for line in axes.get_lines() if len(set(line.get_xdata())) > 2]
+    solid = [line for line in drawn if line.get_linestyle() == '-']
+    dashed = [line for line in drawn if line.get_linestyle() == '--']
+    assert len(solid) == 4 and len(dashed) == 2      # 6S 6P 6D 5F solid, 7S and 6P' dashed
+    labels = [text.get_text() for text in axes.get_legend().get_texts()]
+    assert sorted(labels) == sorted(['6S', '7S', '6P', '6D', '5F', '6P\u2032'])
+    # colour follows l: 6S and 7S (both l=0) share one; 6P, 6P' share another
+    colour_of = {}
+    for line, label in zip(drawn[:6], labels):
+        colour_of[label] = line.get_color()
+    assert colour_of['6S'] == colour_of['7S']
+    assert colour_of['6P'] == colour_of['6P\u2032']
+    assert len({colour_of['6S'], colour_of['6P'], colour_of['6D'], colour_of['5F']}) == 4
+    # the abscissa stops where the projectors do, not at the end of the ld1 grid
+    assert axes.get_xlim()[1] < 50.0
+    assert axes.get_title() == '' and outside_tight_bbox(figure, renderer, Text) == []
+
+
+def test_the_manuscript_log_derivative_stays_linear(monkeypatch, tmp_path):
+    """``export_paper_figures`` must keep figure 3.3 linear (that is the paper's figure)."""
+    directory = write_run(tmp_path / 'run')
+    captured = {}
+
+    def fake_save(figure, out_base, plt, formats):
+        captured[Path(out_base).name] = figure
+        return out_base
+
+    monkeypatch.setattr(report_module, '_save', fake_save)
+    report_module.export_paper_figures(directory, tmp_path / 'figs',
+                                       rcuts={'6S': 1.5, '5F': 1.3},
+                                       formats=('png',))
+    assert captured['fig3_3_logderiv'].axes[0].get_yscale() == 'linear'

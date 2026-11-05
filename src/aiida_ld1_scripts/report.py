@@ -172,6 +172,7 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
 
 def figure_logderiv(plt, directory: str | Path, out_base: Path, *,
                     window=(-3.0, 3.0), threshold: float = analysis.POLE_THRESHOLD,
+                    log_ordinate: bool = False,
                     formats: Sequence[str] = ('png',)) -> Optional[Path]:
     """Logarithmic derivatives, in the style of Torres & Kaloni Fig. 3.
 
@@ -182,6 +183,11 @@ def figure_logderiv(plt, directory: str | Path, out_base: Path, *,
 
     The y range is taken from the data (``0.5``-``99.5`` percentile) rather than a fixed
     ``+-30``, which flattened every pole into a vertical stroke.
+
+    ``log_ordinate=True`` plots ``|L|`` on a logarithmic axis -- ``L`` changes sign at every
+    zero, so a logarithmic axis can only show the magnitude.  The zeros then become deep
+    downward spikes and the poles upward ones.  The manuscript figure stays linear (that is
+    what the paper shows); this is the diagnostic variant.
     """
     import numpy as np
 
@@ -194,22 +200,80 @@ def figure_logderiv(plt, directory: str | Path, out_base: Path, *,
     mask = (energies >= window[0]) & (energies <= window[1])
     channels = [channel for channel in all_electron if channel != 'energy']
 
+    def values(array):
+        """|L| for the logarithmic variant, with L=0 clipped so the curve stays unbroken."""
+        if not log_ordinate:
+            return array
+        return np.maximum(np.abs(array), 1e-8)
+
     figure, axis = plt.subplots(figsize=(6.4, 4.2))
     for position, channel in enumerate(channels):
         colour = PALETTE[position % len(PALETTE)]
-        axis.plot(energies[mask], all_electron[channel][mask], '-', color=colour,
+        axis.plot(energies[mask], values(all_electron[channel][mask]), '-', color=colour,
                   lw=1.1, label=f'{channel} AE')
-        axis.plot(energies[mask], pseudo[channel][mask], ':', color=colour,
+        axis.plot(energies[mask], values(pseudo[channel][mask]), ':', color=colour,
                   lw=1.7, label=f'{channel} PS')
 
     usable = np.concatenate([np.abs(all_electron[channel][mask]) for channel in channels])
-    limit = max(float(np.percentile(usable, 99.5)), 21.0)
-    axis.set_ylim(-limit, limit)
+    if log_ordinate:
+        axis.set_yscale('log')
+        axis.set_ylim(max(float(np.percentile(usable, 0.5)), 1e-4),
+                      max(float(np.percentile(usable, 99.9)), 30.0))
+        axis.set_ylabel('$|L_l(E)|$  (log scale)')
+    else:
+        limit = max(float(np.percentile(usable, 99.5)), 21.0)
+        axis.set_ylim(-limit, limit)
+        axis.set_ylabel('logarithmic derivative  $L_l(E)$')
+        axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
     axis.set_xlim(*window)
     axis.set_xlabel('E (Ry)')
-    axis.set_ylabel('logarithmic derivative  $L_l(E)$')
-    axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
     axis.legend(loc='upper left', frameon=False, ncol=2)
+    return _save(figure, Path(out_base), plt, formats)
+
+
+def figure_projectors(plt, directory: str | Path, out_base: Path, *,
+                      formats: Sequence[str] = ('png',)) -> Optional[Path]:
+    """The radial projector functions ``beta(r)``, one curve per projector.
+
+    Six projectors in one panel, coloured by angular momentum; the two channels that carry
+    two projectors (``l = 0``: 6S/7S and ``l = 1``: 6P/6P') are told apart by a solid and a
+    dashed line.  Amplitude in arbitrary units (that is how ``ld1.x`` writes them), linear
+    ordinate, no title.
+
+    The abscissa is cut where the projectors have actually died out: they are local, and
+    the ``ld1.x`` grid runs to ~100 bohr, which would leave three quarters of the panel
+    empty.
+    """
+    import numpy as np
+
+    try:
+        labels, grid, values = analysis.read_projectors(directory)
+    except (FileNotFoundError, OSError):
+        return None
+    if values.size == 0:
+        return None
+    peak = float(np.max(np.abs(values)))
+    if peak <= 0.0:
+        return None
+    reach = grid[np.any(np.abs(values) > 0.01 * peak, axis=1)]
+    xmax = float(reach.max()) if reach.size else float(grid[-1])
+    xmax = min(max(xmax * 1.1, 3.0), 8.0, float(grid[-1]))
+
+    figure, axis = plt.subplots(figsize=(6.4, 4.2))
+    seen: Dict[int, int] = {}
+    for index, label in enumerate(labels):
+        channel = analysis.state_l(label)
+        position = seen.get(channel, 0)
+        seen[channel] = position + 1
+        colour = PALETTE[channel % len(PALETTE)]
+        axis.plot(grid, values[:, index], '-' if position == 0 else '--',
+                  color=colour, lw=1.2, label=label)
+
+    axis.set_xlim(0.0, xmax)
+    axis.set_xlabel('r (bohr)')
+    axis.set_ylabel(r'$\beta(r)$  (arb. units)')
+    axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
+    axis.legend(loc='upper right', frameon=False, ncol=2)
     return _save(figure, Path(out_base), plt, formats)
 
 
@@ -256,9 +320,13 @@ def make_figures(summary: Dict[str, Any], directory: str | Path,
             (figure_radial, 'fig_radial_logx',
              {'rcuts': rcuts, 'xscale': 'log', 'xlim': (1e-2, 1e2),
               'pseudo_line': True}),
+            # the repository diagnostic uses a logarithmic |L|; the manuscript figure that
+            # export_paper_figures() writes stays linear, as in the paper
             (figure_logderiv, 'fig_logderiv',
              {'window': summary['criteria']['window'],
-              'threshold': summary['criteria']['pole_threshold']})):
+              'threshold': summary['criteria']['pole_threshold'],
+              'log_ordinate': True}),
+            (figure_projectors, 'fig_projectors', {})):
         try:
             path = function(plt, directory, out_dir / base, formats=('png',), **extra)
         except Exception as exception:                  # noqa: BLE001
@@ -266,6 +334,8 @@ def make_figures(summary: Dict[str, Any], directory: str | Path,
             path = None
         if path is not None:
             written.append(Path(f'{path}.png'))
+        else:
+            print(f'  note: {base} was skipped (its input file is missing from the run)')
     return written
 
 
@@ -457,8 +527,13 @@ def write_report(summary: Dict[str, Any], out_dir: Optional[str | Path] = None) 
               'states (4F, 5D) have no pseudo-orbital and are not drawn.', '',
               '![log derivatives](fig_logderiv.png)', '',
               'All-electron curves solid, pseudo curves dotted, one colour per angular '
-              'momentum channel. Pole correspondence is in the table above, not marked '
-              'on the figure.', '']
+              'momentum channel; `|L|` on a logarithmic axis, so a pole is an upward spike '
+              'and a zero a downward one. Pole correspondence is in the table above, not '
+              'marked on the figure.', '',
+              '![projectors](fig_projectors.png)', '',
+              'The six radial projector functions `beta(r)`, coloured by angular momentum '
+              '(the two channels with two projectors, `l = 0` and `l = 1`, use a solid and '
+              'a dashed line), amplitude in arbitrary units.', '']
 
     path = out / 'REPORT.md'
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')

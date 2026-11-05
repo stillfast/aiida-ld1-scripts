@@ -17,8 +17,9 @@ from aiida import orm
 from . import analysis, recipe as recipe_module
 
 #: files copied out of a ``retrieved`` folder for the analysis
-RETRIEVED_FILES = ('ld1.dlog', 'ld1ps.dlog', 'ld1.wfc', 'ld1ps.wfc', 'ld1.test',
-                   'ld1.pwe', 'ld1.beta')
+#: ``ld1.x`` names the beta file after ``&inputp.file_beta`` (this recipe: ``U.beta``), so
+#: it is picked up by suffix rather than by the literal name it is given here
+RETRIEVED_FILES = ('ld1.dlog', 'ld1ps.dlog', 'ld1.wfc', 'ld1ps.wfc', 'ld1.test', 'ld1.pwe')
 
 
 def _finished(group_label: str, role: str) -> List[Any]:
@@ -41,9 +42,10 @@ def dump_retrieved(node, target: Path) -> Path:
     retrieved = node.outputs['retrieved']
     target.mkdir(parents=True, exist_ok=True)
     available = set(retrieved.list_object_names())
-    for name in RETRIEVED_FILES:
-        if name in available:
-            (target / name).write_bytes(retrieved.get_object_content(name, mode='rb'))
+    names = [name for name in RETRIEVED_FILES if name in available]
+    names += [name for name in sorted(available) if name.endswith('.beta')]
+    for name in dict.fromkeys(names):
+        (target / name).write_bytes(retrieved.get_object_content(name, mode='rb'))
     return target
 
 

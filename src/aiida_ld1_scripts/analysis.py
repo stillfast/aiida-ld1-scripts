@@ -145,6 +145,26 @@ def wavefunction_agreement(ae_path: str | Path, ps_path: str | Path,
     return result
 
 
+#: the spectroscopic letters, ``s p d f g h i k`` -> l = 0..7
+LETTERS = 'spdfghik'
+
+
+def state_l(label: str) -> int:
+    """Angular momentum of a state label: ``6S`` -> 0, ``5F`` -> 3, ``6P'`` -> 1.
+
+    The trailing letters of a label may carry a prime to disambiguate a repeated channel
+    (``6P`` / ``6P'``); only the first alphabetic character matters.  ``-1`` means "no
+    letter", which never matches a channel.
+    """
+    letters = ''.join(character for character in str(label) if character.isalpha())
+    if not letters:
+        return -1
+    try:
+        return LETTERS.index(letters[0].lower())
+    except ValueError:
+        return -1
+
+
 # --------------------------------------------------------------------- poles
 
 
@@ -324,6 +344,29 @@ def select_rlderiv(scanned: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
             'pole_gated': by_median['poles_all_coincide'],
         },
     }
+
+
+def read_projectors(directory: str | Path
+                    ) -> Tuple[List[str], np.ndarray, np.ndarray]:
+    """The radial projector functions ``beta(r)`` of a run.
+
+    ``&inputp.file_beta`` gets the same layout as ``ld1.wfc``: a ``#`` header naming one
+    column per state, then ``r`` and one column per projector.  The state labels repeat
+    when a channel carries two projectors -- this recipe has ``6P`` twice, the second one
+    with ``occ = 0`` -- so the repeats are disambiguated as ``6P``, ``6P'``, ... rather
+    than left as two identical legend entries.
+    """
+    candidates = sorted(Path(directory).glob('*.beta'))
+    if not candidates:
+        raise FileNotFoundError(f'no *.beta file in {directory}')
+    labels, grid, values = read_wfc(candidates[0])
+
+    counted: Dict[str, int] = {}
+    unique: List[str] = []
+    for label in labels:
+        counted[label] = counted.get(label, 0) + 1
+        unique.append(label if counted[label] == 1 else f'{label}{chr(0x2032) * (counted[label] - 1)}')
+    return unique, grid, values
 
 
 # --------------------------------------------------------- transferability test

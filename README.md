@@ -174,10 +174,20 @@ previous files are kept as `*.bak`):
 |---|---|
 | all-electron curve | **solid line** |
 | pseudo-orbital | **open symbols** (radial) / **dotted line** (log derivative) |
+| projectors | one curve per `beta`, colour by `l`; channels with two projectors (6S/7S, 6P/6P′) use solid vs dashed |
 | pseudization radius | vertical **dotted** line, one per channel, with `rc` in bohr |
 | colour | Okabe–Ito, one fixed colour per `l` channel; AE/PS never distinguished by colour |
 | titles | **none** — the axes are labelled and the manuscript supplies the caption |
 | extras | none: no inset, no pole markers, no annotations on the curves |
+
+The repository carries two **diagnostic** variants that differ from the manuscript figures
+on purpose (the paper's own convention is kept for `fig3_*`):
+
+| file | difference |
+|---|---|
+| `fig_logderiv.png` | ordinate is `log |L|` (a signed `L` cannot be logarithmic); the manuscript `fig3_3_logderiv` stays linear |
+| `fig_projectors.png` | the six `beta(r)`, not part of `fig3_1/fig3_3` |
+| `fig_radial_logx.png` | logarithmic abscissa `1e-2 … 1e2 bohr`, pseudo curve dashed *and* open symbols, linear ordinate |
 | units | **bohr** (not Å as in the paper: this recipe's cards and `ld1.test` are in bohr) |
 | labels | `AE` / `PS` — the pseudopotential is norm-conserving, not PAW |
 
@@ -192,7 +202,7 @@ passed as `bbox_extra_artists`), and `Figure.get_tightbbox` is in inches while
 ## Tests
 
 ```bash
-pytest        # 27 tests, no database needed
+pytest        # 32 tests, no database needed
 ```
 
 The fixtures in `tests/data/` are the ten `.dlog` files of the reference `rlderiv` scan,
