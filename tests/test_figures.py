@@ -239,3 +239,34 @@ def test_the_diagnostic_variant_has_a_log_abscissa_and_a_linear_ordinate(capture
     assert [line.get_color() for line in symbols] == [line.get_color() for line in solid]
     assert axes.get_ylabel().startswith('u(r) = r·R(r)')
     assert axes.get_title() == '' and len(axes.child_axes) == 0
+
+
+def test_the_shipped_configuration_is_what_we_think_it_is(monkeypatch, tmp_path):
+    """Guard the *arguments make_figures passes*, not just a hand-made call.
+
+    This is the regression that slipped through once: the shipped ``fig_radial_logx`` kept
+    ``log_ordinate=True`` because a text edit silently did not match, and a test that called
+    ``figure_radial`` itself could not see it.
+    """
+    directory = write_run(tmp_path / 'run')
+    summary = {
+        'generation': {'wavefunctions': {'6S': {'rcut': 1.5}, '5F': {'rcut': 1.3}}},
+        'criteria': {'window': (-3.0, 3.0), 'pole_threshold': 20.0},
+    }
+    captured = {}
+
+    def fake_save(figure, out_base, plt, formats):
+        captured[Path(out_base).name] = figure
+        return out_base
+
+    monkeypatch.setattr(report_module, '_save', fake_save)
+    written = report_module.make_figures(summary, directory, tmp_path / 'data')
+
+    assert sorted(captured) == ['fig_logderiv', 'fig_radial', 'fig_radial_logx']
+    assert sorted(Path(path).stem for path in written) == sorted(captured)
+    linear = captured['fig_radial'].axes[0]
+    assert (linear.get_xscale(), linear.get_yscale()) == ('linear', 'linear')
+    logx = captured['fig_radial_logx'].axes[0]
+    assert (logx.get_xscale(), logx.get_yscale()) == ('log', 'linear')
+    assert logx.get_xlim() == pytest.approx((0.01, 100.0))
+    assert any(line.get_linestyle() == '--' for line in logx.get_lines())

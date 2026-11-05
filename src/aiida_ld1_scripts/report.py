@@ -255,7 +255,7 @@ def make_figures(summary: Dict[str, Any], directory: str | Path,
             (figure_radial, 'fig_radial', {'rcuts': rcuts}),
             (figure_radial, 'fig_radial_logx',
              {'rcuts': rcuts, 'xscale': 'log', 'xlim': (1e-2, 1e2),
-              'pseudo_line': True, 'log_ordinate': True}),
+              'pseudo_line': True}),
             (figure_logderiv, 'fig_logderiv',
              {'window': summary['criteria']['window'],
               'threshold': summary['criteria']['pole_threshold']})):
