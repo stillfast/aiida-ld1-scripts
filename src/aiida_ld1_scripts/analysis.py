@@ -369,6 +369,42 @@ def read_projectors(directory: str | Path
     return unique, grid, values
 
 
+def pole_table(ae: Dict[str, np.ndarray], ps: Dict[str, np.ndarray],
+               window: Tuple[float, float] = (-3.0, 3.0),
+               threshold: float = POLE_THRESHOLD,
+               tolerance: float = 0.04) -> List[Dict[str, object]]:
+    """Per channel: the AE and PS pole energies and the displacement of each pair.
+
+    This is the table the log-derivative figure shows and the report prints, so that the
+    ghost criterion is a number rather than something read off a curve.
+    """
+    energies = ae['energy']
+    mask = (energies >= window[0]) & (energies <= window[1])
+    rows: List[Dict[str, object]] = []
+    for channel in ae:
+        if channel == 'energy':
+            continue
+        left = find_poles(energies[mask], ae[channel][mask], threshold)
+        right = find_poles(ps['energy'][mask], ps[channel][mask], threshold)
+        matched = match_poles(left, right, tolerance)
+        pairs = []
+        remaining = list(right)
+        for position in left:
+            nearest = min(remaining, key=lambda other: abs(other - position), default=None)
+            if nearest is not None and abs(nearest - position) <= tolerance:
+                pairs.append((position, nearest, abs(nearest - position)))
+                remaining.remove(nearest)
+        rows.append({
+            'channel': channel,
+            'ae': left,
+            'ps': right,
+            'pairs': pairs,
+            'coincide': matched['coincide'],
+            'max_delta': max((delta for _a, _b, delta in pairs), default=0.0),
+        })
+    return rows
+
+
 # --------------------------------------------------------- transferability test
 
 
