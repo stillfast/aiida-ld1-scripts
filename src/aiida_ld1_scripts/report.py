@@ -26,14 +26,19 @@ from . import analysis, recipe as recipe_module
 #: channels used as criteria (the box test is not trustworthy for l >= 3)
 RELIABLE_MAX_L = 2
 
-#: double-column width of the manuscript (inches)
-WIDTH = 7.0
-#: bohr -> angstrom, for the secondary abscissa
-BOHR2ANG = 0.529177210903
-
 #: Okabe-Ito: colour-blind safe, and one fixed colour per angular-momentum channel.  AE
 #: and PS are told apart by the line style / symbol, never by the colour alone -- the
 #: two curves of one channel are the same physical object.
+#: Okabe-Ito order, indexed by orbital so that 6S keeps one colour in every figure
+ORBITAL_COLOURS = {'6S': '#0072B2', '7S': '#56B4E9', '6P': '#D55E00', '6D': '#009E73',
+                   '5F': '#CC79A7', '6P\u2032': '#E69F00'}
+
+
+def orbital_colour(label: str, fallback: int = 0) -> str:
+    """One fixed colour per orbital (falls back to the palette order)."""
+    return ORBITAL_COLOURS.get(label, PALETTE[fallback % len(PALETTE)])
+
+
 PALETTE = ('#0072B2',   # blue
            '#D55E00',   # vermillion
            '#009E73',   # bluish green
@@ -46,33 +51,42 @@ def _matplotlib():
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    from matplotlib.lines import Line2D as _Line2D
 
-    globals()['Line2D'] = _Line2D          # used by the legend proxy handles
-
-    # one style for every figure (values from the manuscript's own script, so the new
-    # figures and the previous Fig. 3.1/3.2/3.3 look like the same paper)
+    # Cosmetic settings only: the figures keep their single panel, their marks and their
+    # axis types.  Thin spines, outward ticks, small minor ticks -- that is what makes a
+    # matplotlib default look like a printed figure rather than a screenshot.
     plt.rcParams.update({
-        'font.family': 'DejaVu Sans', 'font.size': 8.5,
-        'axes.labelsize': 8.5, 'axes.titlesize': 8.5,
-        'xtick.labelsize': 7.5, 'ytick.labelsize': 7.5,
-        'legend.fontsize': 7.5, 'legend.frameon': False,
-        'axes.linewidth': 0.8, 'lines.linewidth': 1.5,
+        'font.size': 9.5, 'axes.labelsize': 9.5, 'axes.titlesize': 9.5,
+        'xtick.labelsize': 8.5, 'ytick.labelsize': 8.5,
+        'legend.fontsize': 7.8, 'legend.frameon': False,
+        'legend.handlelength': 2.2, 'legend.labelspacing': 0.42,
+        'axes.linewidth': 0.8, 'axes.grid': False,
+        'axes.labelpad': 3.5,
         'xtick.direction': 'out', 'ytick.direction': 'out',
         'xtick.major.width': 0.8, 'ytick.major.width': 0.8,
+        'xtick.major.size': 3.2, 'ytick.major.size': 3.2,
         'xtick.minor.width': 0.6, 'ytick.minor.width': 0.6,
-        'axes.grid': False, 'savefig.dpi': 300,
+        'xtick.minor.size': 1.8, 'ytick.minor.size': 1.8,
+        'savefig.dpi': 300,
         'svg.fonttype': 'none', 'pdf.fonttype': 42,
-        'mathtext.default': 'regular',
     })
     return plt
+
+
+def _polish(axis, *, minor: int = 2):
+    """Minor ticks + a thin zero line; layout is untouched."""
+    from matplotlib.ticker import AutoMinorLocator
+
+    for which in (axis.xaxis, axis.yaxis):
+        which.set_minor_locator(AutoMinorLocator(minor))
 
 
 def _save(figure, out_base: Path, plt, formats: Sequence[str]) -> Path:
     """Save ``out_base`` in every requested format; returns the base path.
 
-    ``bbox_inches='tight'`` keeps a long ylabel from being cut off, but it does **not**
-    include an inset (child) axes' decorations, so those are passed as extra artists.
+    ``bbox_inches='tight'`` is what keeps a long ylabel from being cut off.  It is **not**
+    sufficient on its own: matplotlib's tight bounding box does not include the
+    decorations of an inset (child) axes, so those are passed as extra artists.
     """
     out_base.parent.mkdir(parents=True, exist_ok=True)
     extra = []
@@ -81,56 +95,50 @@ def _save(figure, out_base: Path, plt, formats: Sequence[str]) -> Path:
             extra.extend(child.get_default_bbox_extra_artists() or [])
     for suffix in formats:
         figure.savefig(f'{out_base}.{suffix}', dpi=300, bbox_inches='tight',
-                       bbox_extra_artists=extra or None)
+                       pad_inches=0.035, bbox_extra_artists=extra or None)
     plt.close(figure)
     return out_base
 
 
-def _minor_ticks(axis, divisions: int = 2):
-    """Minor ticks, honouring the log axes (``AutoMinorLocator`` refuses them)."""
-    from matplotlib.ticker import AutoMinorLocator, LogLocator
+def _sample(grid, count: int = 34, *, logarithmic: bool = False):
+    """Indices at which to draw the open symbols (a curve, not a thick band).
 
-    for name, which in (('x', axis.xaxis), ('y', axis.yaxis)):
-        if getattr(axis, f'get_{name}scale')() == 'log':
-            which.set_minor_locator(LogLocator(base=10.0, subs=(2.0, 5.0), numticks=50))
-        else:
-            which.set_minor_locator(AutoMinorLocator(divisions))
+    With a logarithmic x axis the symbols are sampled logarithmically too, otherwise
+    every one of them crowds into the left-hand decade and the outer region is left bare.
+    """
+    import numpy as np
 
-
-def _top_angstrom(axis):
-    """A second abscissa in angstrom on the top edge (bohr stays on the bottom)."""
-    from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
-
-    secondary = axis.secondary_xaxis(
-        'top', functions=(lambda x: x * BOHR2ANG, lambda value: value / BOHR2ANG))
-    secondary.set_xlabel(r'$r$ ($\mathrm{\AA}$)', fontsize=8, labelpad=2)
-    secondary.tick_params(labelsize=7)
-    low, high = axis.get_xlim()
-    candidates = ((0.1, 0.2, 0.5, 1.0, 2.0, 3.0) if axis.get_xscale() == 'log'
-                  else (0.1, 0.5, 1.0, 2.0))
-    ticks = [tick for tick in candidates if low * BOHR2ANG < tick < high * BOHR2ANG]
-    secondary.set_xticks(ticks)
-    secondary.xaxis.set_major_locator(FixedLocator(ticks))
-    secondary.xaxis.set_major_formatter(FuncFormatter(lambda value, _pos: f'{value:g}'))
-    secondary.xaxis.set_minor_locator(NullLocator())
-    return secondary
+    grid = np.asarray(grid)
+    if not logarithmic:
+        step = max(1, len(grid) // count)
+        return np.arange(0, len(grid), step)
+    positive = grid > 0
+    low, high = np.log10(grid[positive].min()), np.log10(grid[positive].max())
+    targets = np.logspace(low, high, count)
+    indices = np.unique(np.searchsorted(grid, targets).clip(0, len(grid) - 1))
+    return indices[grid[indices] > 0]
 
 
 def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
-                  xscale: str = 'log', xlim=(0.02, 6.0),
-                  pseudo: str = 'dashed', log_ordinate: bool = False,
-                  difference_panel: bool = True,
+                  xscale: str = 'linear', xlim=None, pseudo_line: bool = False,
+                  log_ordinate: bool = False,
                   formats: Sequence[str] = ('png',)) -> Optional[Path]:
-    """AE vs pseudo radial functions, in the style of Torres & Kaloni Fig. 2.
+    """AE vs pseudo radial functions, in the style of Torres & Kaloni Fig. 2 (left).
 
-    All-electron **solid**, pseudo **dashed** (``pseudo='dashed'``) or as **open symbols**
-    (``'symbols'``) or both (``'both'``); a vertical dotted line at every ``rcut``; the
-    core region ``r < min(rcut)`` in light grey; an angstrom abscissa on the top edge; and
-    a **difference panel** underneath with ``|u_AE - u_PS| / max|u_AE|`` on a log ordinate.
+    All-electron orbitals are **solid lines**, pseudo-orbitals **open symbols** (a dashed
+    line would hide underneath the solid one exactly where the two have to coincide), and
+    each pseudized channel gets a vertical dotted line at its ``rcut``.  No title: the axes
+    are labelled and the legend carries the ``rcut`` values.
 
-    The difference panel is what makes "the tails agree" quantitative: overlaid, a dashed
-    curve hides underneath the solid one exactly where the two coincide, which was the
-    original complaint about this figure.
+    Only the pseudized channels are drawn; the all-electron run also writes core states
+    (4F, 5D) that the pseudopotential has no orbital for.
+
+    ``xscale='log'`` is a diagnostic variant: with ``xlim=(1e-2, 1e2)`` it covers the whole
+    orbital, from the core to the exponential tail.  ``pseudo_line=True`` also joins the
+    pseudo points with a dashed line (on four decades of abscissa the symbols alone are too
+    sparse to follow).  ``log_ordinate=True`` optionally puts ``|u|`` on a logarithmic axis
+    -- the shipped diagnostic keeps a **linear** ordinate, so beyond ~10 bohr the curves sit
+    on the zero line by construction, which is the honest picture of that range.
     """
     import numpy as np
 
@@ -141,174 +149,78 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
     ae_labels, grid, ae_values = analysis.read_wfc(ae_file)
     ps_labels, _, ps_values, _aligned = analysis.read_wfc_halves(ps_file)
 
+    figure, axis = plt.subplots(figsize=(6.2, 3.9))
     logarithmic = str(xscale).lower() == 'log'
+    # only use (and sample) the window that is actually shown: the ld1 grid runs to ~100 bohr
     if xlim:
         low, high = float(xlim[0]), float(xlim[1])
+    elif logarithmic:
+        # a log axis cannot start at 0; the grid's first positive point would be ~1e-5,
+        # which is not interesting -- start at 1e-4 unless told otherwise
+        low, high = max(float(grid[grid > 0].min()), 1e-4), min(8.0, float(grid[-1]))
     else:
-        low = max(float(grid[grid > 0].min()), 1e-4) if logarithmic else 0.0
-        high = min(8.0, float(grid[-1]))
+        low, high = 0.0, min(8.0, float(grid[-1]))
     visible = (grid >= low) & (grid <= high) if logarithmic else (grid <= high)
+    indices = _sample(grid[visible], logarithmic=logarithmic)
     rcuts = rcuts or {}
 
-    figure = plt.figure(figsize=(WIDTH, 4.3))
-    if difference_panel:
-        grid_spec = figure.add_gridspec(2, 1, height_ratios=(3.0, 1.05), hspace=0.08,
-                                        left=0.085, right=0.775, top=0.905, bottom=0.105)
-        main = figure.add_subplot(grid_spec[0])
-        panel = figure.add_subplot(grid_spec[1], sharex=main)
-        main.tick_params(labelbottom=False)
-    else:
-        grid_spec = figure.add_gridspec(1, 1, left=0.085, right=0.775, top=0.905,
-                                        bottom=0.115)
-        main = figure.add_subplot(grid_spec[0])
-        panel = None
-
-    indices = np.arange(0, visible.sum(), max(1, visible.sum() // 34))
-    handles = []
     for position, label in enumerate(ps_labels):
         if label not in ae_labels:
             continue
-        colour = _orbital_colour(label, position)
+        colour = orbital_colour(label, position)
         all_electron = ae_values[:, ae_labels.index(label)]
-        pseudo_values = ps_values[:, position]
-        all_electron, _flipped = analysis.align_phase(all_electron, pseudo_values)
+        pseudo = ps_values[:, position]
+        all_electron, _flipped = analysis.align_phase(all_electron, pseudo)
+
         cutoff = rcuts.get(label)
-        name = label if cutoff is None else f'{label}  ($r_c$ = {cutoff:g})'
-        handles.append(Line2D([], [], color=colour, lw=1.5, label=name))
-
-        shown = np.abs(all_electron) if log_ordinate else all_electron
-        main.plot(grid[visible], shown[visible], '-', color=colour, lw=1.5, zorder=3)
-        if pseudo in ('dashed', 'both'):
-            pseudo_shown = np.abs(pseudo_values) if log_ordinate else pseudo_values
-            main.plot(grid[visible], pseudo_shown[visible], color=colour, lw=1.0,
-                      ls=(0, (4, 2)), zorder=4)
-        if pseudo in ('symbols', 'both'):
-            marks = np.flatnonzero(visible)[indices]
-            main.plot(grid[marks], pseudo_values[marks], 'o', color=colour, mfc='none',
-                      mec=colour, ms=3.0, mew=0.9, zorder=5)
+        name = label if cutoff is None else f'{label} (r$_c$ = {cutoff:.2f} bohr)'
+        shown_ae, shown_ps = all_electron, pseudo
+        if log_ordinate:
+            shown_ae, shown_ps = np.abs(all_electron), np.abs(pseudo)
+        axis.plot(grid[visible], shown_ae[visible], '-', color=colour, lw=1.4, label=name)
+        if pseudo_line:
+            axis.plot(grid[visible], shown_ps[visible], '--', color=colour, lw=1.0,
+                      alpha=0.95)
+        axis.plot(grid[visible][indices], shown_ps[visible][indices], 'o',
+                  color=colour, mfc='none', mec=colour, ms=3.3, mew=0.85)
         if cutoff is not None:
-            main.axvline(cutoff, color=colour, lw=0.8, ls=(0, (2, 2)), alpha=0.55,
-                         zorder=1)
-        if panel is not None:
-            peak = float(np.max(np.abs(all_electron[visible]))) or 1.0
-            panel.semilogy(grid[visible],
-                           np.maximum(np.abs(all_electron - pseudo_values)[visible] / peak,
-                                      1e-12),
-                           '-', color=colour, lw=0.9)
+            axis.axvline(cutoff, color=colour, ls=':', lw=0.8, alpha=0.7, zorder=1)
 
-    if rcuts:
-        main.axvspan(low if logarithmic else 0.0, min(rcuts.values()), color='0.92', zorder=0)
-
-    main.set_xscale('log') if logarithmic else main.set_xscale('linear')
-    main.set_xlim(low, high)
+    axis.set_xlabel('r (bohr)')
     if log_ordinate:
-        main.set_yscale('log')
-        main.set_ylabel('$|u(r)|$  (log scale)')
+        axis.set_yscale('log')
+        axis.set_ylabel('|u(r)| = |r·R(r)|  (arb. units)')
     else:
-        main.set_ylabel(r'$u(r) = rR(r)$  (arb. units)')
-    peak = float(np.max(np.abs(ae_values[visible]))) or 1.0
-    if not log_ordinate:
-        main.set_ylim(-1.35 * peak, 1.25 * peak)
-    _minor_ticks(main)
-    _top_angstrom(main)
-
-    handles += [Line2D([], [], color='0.25', lw=1.5, label='AE'),
-                Line2D([], [], color='0.25', lw=1.0, ls=(0, (4, 2)), label='PS')]
-    main.legend(handles=handles, loc='upper left', bbox_to_anchor=(1.005, 1.0),
-                borderaxespad=0.0, handlelength=2.6, labelspacing=0.55)
-
-    if panel is not None:
-        panel.set_xscale('log') if logarithmic else panel.set_xscale('linear')
-        panel.set_xlim(low, high)
-        panel.set_ylim(1e-6, 2.0)
-        panel.axhline(1e-3, color='0.6', lw=0.6, ls=':')
-        panel.set_ylabel(r'$|\Delta u| / \max|u|$')
-        panel.set_xlabel('r (bohr)')
-        _minor_ticks(panel)
+        axis.set_ylabel('u(r) = r·R(r)  (arb. units)')
+    if logarithmic:
+        axis.set_xscale('log')
+        axis.set_xlim(low, high)
     else:
-        main.set_xlabel('r (bohr)')
-    return _save(figure, Path(out_base), plt, formats)
-
-
-def figure_projectors(plt, directory: str | Path, out_base: Path, *, rcuts=None,
-                      formats: Sequence[str] = ('png',)) -> Optional[Path]:
-    """The radial projector functions ``beta(r)``: absolute (log) and normalized.
-
-    Two panels over a shared abscissa: ``|beta|`` on a logarithmic ordinate, and
-    ``beta/beta_max`` linear underneath, which is the one that shows the shape.  Colour
-    follows the orbital, the second projector of a channel is dashed.
-    """
-    import numpy as np
-
-    try:
-        labels, grid, values = analysis.read_projectors(directory)
-    except (FileNotFoundError, OSError):
-        return None
-    if values.size == 0:
-        return None
-    peak = float(np.max(np.abs(values))) or 1.0
-    reach = grid[np.any(np.abs(values) > 0.01 * peak, axis=1)]
-    high = float(reach.max()) * 1.1 if reach.size else float(grid[-1])
-    high = min(max(high, 3.0), 8.0, float(grid[-1]))
-    rcuts = rcuts or {}
-
-    figure = plt.figure(figsize=(WIDTH, 4.3))
-    grid_spec = figure.add_gridspec(2, 1, height_ratios=(1.0, 1.0), hspace=0.10,
-                                    left=0.085, right=0.775, top=0.905, bottom=0.115)
-    absolute = figure.add_subplot(grid_spec[0])
-    relative = figure.add_subplot(grid_spec[1], sharex=absolute)
-    absolute.tick_params(labelbottom=False)
-
-    handles = []
-    for index, label in enumerate(labels):
-        # read_projectors() already disambiguated the repeated channels as ``6P′``, so the
-        # prime character is what marks the second projector of a channel
-        base = label.rstrip('\u2032')
-        second = label != base
-        style = (0, (4, 2)) if second else '-'
-        colour = _orbital_colour(base, index)
-        name = label if second else base
-        name = name.replace('\u2032', r'$\prime$')
-        handles.append(Line2D([], [], color=colour, lw=1.3, ls=style, label=name))
-        column = values[:, index]
-        absolute.semilogy(grid, np.maximum(np.abs(column), 1e-30), color=colour, lw=1.3,
-                          ls=style, label=name)
-        relative.plot(grid, column / (np.max(np.abs(column)) or 1.0), color=colour, lw=1.3,
-                      ls=style)
-        cutoff = rcuts.get(base)
-        if cutoff is not None:
-            for axis in (absolute, relative):
-                axis.axvline(cutoff, color=colour, lw=0.8, ls=(0, (2, 2)), alpha=0.55)
-
-    for axis in (absolute, relative):
         axis.set_xlim(0.0, high)
-        _minor_ticks(axis)
-    absolute.set_ylim(1e-6, 10.0 * peak)
-    absolute.set_ylabel(r'$|\beta(r)|$  (arb. units)')
-    relative.set_ylim(-1.05, 1.15)
-    relative.set_ylabel(r'$\beta(r)/\beta_{\max}$')
-    relative.set_xlabel('r (bohr)')
-    _top_angstrom(absolute)          # the top edge of the figure, not between the panels
-    absolute.legend(handles=handles, loc='upper left', bbox_to_anchor=(1.005, 1.0),
-                    borderaxespad=0.0, handlelength=2.6, labelspacing=0.55)
+    axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
+    _polish(axis)
+    axis.legend(loc='upper right', frameon=False)
     return _save(figure, Path(out_base), plt, formats)
 
 
 def figure_logderiv(plt, directory: str | Path, out_base: Path, *,
                     window=(-3.0, 3.0), threshold: float = analysis.POLE_THRESHOLD,
-                    log_ordinate: bool = False, radius: float | None = None,
-                    pole_table: bool = True,
+                    log_ordinate: bool = False,
                     formats: Sequence[str] = ('png',)) -> Optional[Path]:
-    """Logarithmic derivatives: AE solid, pseudo as open circles every tenth point.
+    """Logarithmic derivatives, in the style of Torres & Kaloni Fig. 3.
 
-    The ordinate stays **linear** (a signed ``L`` cannot be logarithmic; ``log_ordinate``
-    gives the ``|L|`` variant instead).  The pole correspondence -- the ghost criterion --
-    is not eyeballed: it is a **table panel** underneath, per channel, with the AE and PS
-    pole energies and their displacement.
+    All-electron curves **solid**, pseudo curves **dotted** -- the paper's convention, and
+    nothing else: no title, no vertical pole markers, no annotations.  The pole
+    correspondence is a number in the report table, not something to be measured off the
+    picture.
 
-    ``radius`` is the reference radius at which ``L`` was evaluated; it belongs on the
-    figure (the paper states its own r_d in the caption), so it goes into the x label when
-    given.
+    The y range is taken from the data (``0.5``-``99.5`` percentile) rather than a fixed
+    ``+-30``, which flattened every pole into a vertical stroke.
+
+    ``log_ordinate=True`` plots ``|L|`` on a logarithmic axis -- ``L`` changes sign at every
+    zero, so a logarithmic axis can only show the magnitude.  The zeros then become deep
+    downward spikes and the poles upward ones.  The manuscript figure stays linear (that is
+    what the paper shows); this is the diagnostic variant.
     """
     import numpy as np
 
@@ -321,79 +233,95 @@ def figure_logderiv(plt, directory: str | Path, out_base: Path, *,
     mask = (energies >= window[0]) & (energies <= window[1])
     channels = [channel for channel in all_electron if channel != 'energy']
 
-    figure = plt.figure(figsize=(WIDTH, 4.6))
-    if pole_table:
-        grid_spec = figure.add_gridspec(2, 1, height_ratios=(3.4, 1.0), hspace=0.12,
-                                        left=0.085, right=0.755, top=0.945, bottom=0.095)
-        main = figure.add_subplot(grid_spec[0])
-        table_axis = figure.add_subplot(grid_spec[1])
-        table_axis.axis('off')
-    else:
-        grid_spec = figure.add_gridspec(1, 1, left=0.085, right=0.755, top=0.945,
-                                        bottom=0.115)
-        main = figure.add_subplot(grid_spec[0])
-        table_axis = None
-
     def values(array):
-        return np.maximum(np.abs(array), 1e-8) if log_ordinate else array
+        """|L| for the logarithmic variant, with L=0 clipped so the curve stays unbroken."""
+        if not log_ordinate:
+            return array
+        return np.maximum(np.abs(array), 1e-8)
 
-    handles = []
+    figure, axis = plt.subplots(figsize=(6.2, 3.9))
     for position, channel in enumerate(channels):
         colour = PALETTE[position % len(PALETTE)]
-        main.plot(energies[mask], values(all_electron[channel][mask]), '-', color=colour,
-                  lw=1.3, zorder=2)
-        every = np.arange(0, mask.sum(), 10)
-        main.plot(energies[mask][every], values(pseudo[channel][mask])[every], 'o',
-                  color=colour, mfc='none', mec=colour, ms=3.0, mew=0.9, zorder=3)
-        handles.append(Line2D([], [], color=colour, lw=1.3,
-                              label=(f'{channel}  (med '
-                                     r'$|\Delta L|$'
-                                     f' = {float(np.median(np.abs(pseudo[channel][mask] - all_electron[channel][mask]))):.2g})')))
+        # the reference (AE) is the heavier curve; the one being judged (PS) is dotted and
+        # thinner, so the eye reads which is which before it reads the legend
+        axis.plot(energies[mask], values(all_electron[channel][mask]), '-', color=colour,
+                  lw=1.4, label=f'{channel} AE')
+        axis.plot(energies[mask], values(pseudo[channel][mask]), ':', color=colour,
+                  lw=1.0, label=f'{channel} PS')
 
     usable = np.concatenate([np.abs(all_electron[channel][mask]) for channel in channels])
     if log_ordinate:
-        main.set_yscale('log')
-        main.set_ylim(max(float(np.percentile(usable, 0.5)), 1e-4),
+        axis.set_yscale('log')
+        axis.set_ylim(max(float(np.percentile(usable, 0.5)), 1e-4),
                       max(float(np.percentile(usable, 99.9)), 30.0))
-        main.set_ylabel('$|L_l(E)|$  (log scale)')
+        axis.set_ylabel('$|L_l(E)|$  (log scale)')
     else:
         limit = max(float(np.percentile(usable, 99.5)), 21.0)
-        main.set_ylim(-limit, limit)
-        main.set_ylabel(r'$L_l(E)$')
-        main.axhline(0.0, color='0.85', lw=0.5, zorder=0)
-    main.set_xlim(*window)
-    main.set_xlabel('E (Ry)' if radius is None
-                    else f'E (Ry),  $L$ evaluated at $r_d$ = {radius:g} bohr')
-    _minor_ticks(main, divisions=4)
-    handles += [Line2D([], [], color='0.25', lw=1.3, label='AE'),
-                Line2D([], [], color='0.25', lw=0, marker='o', ms=3.2, mfc='none',
-                       mew=0.9, label='PS (every 10th pt)')]
-    main.legend(handles=handles, loc='upper left', bbox_to_anchor=(1.005, 1.0),
-                borderaxespad=0.0, handlelength=2.2, labelspacing=0.75)
+        axis.set_ylim(-limit, limit)
+        axis.set_ylabel('logarithmic derivative  $L_l(E)$')
+        axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
+    axis.set_xlim(*window)
+    axis.set_xlabel('E (Ry)')
+    axis.legend(loc='upper left', frameon=False, ncol=2)
+    return _save(figure, Path(out_base), plt, formats)
 
-    if table_axis is not None:
-        rows = analysis.pole_table(all_electron, pseudo, window=window,
-                                  threshold=threshold)
-        lines = ['channel   AE poles (Ry)            PS poles (Ry)            '
-                 'displacement (Ry)']
-        for row in rows:
-            ae_text = ', '.join(f'{value:+.2f}' for value in row['ae'][:3]) or '-'
-            ps_text = ', '.join(f'{value:+.2f}' for value in row['ps'][:3]) or '-'
-            delta_text = ', '.join(f'{delta:.3f}' for _a, _b, delta in row['pairs']) or '-'
-            lines.append(f'{row["channel"]:<8s}  {ae_text:<23s}  {ps_text:<23s}  '
-                         f'{delta_text}'
-                         + ('' if row['coincide'] else '   (no match)'))
-        table_axis.text(0.0, 0.95, '\n'.join(lines), fontsize=6.4, family='monospace',
-                        transform=table_axis.transAxes, va='top', ha='left')
+
+def figure_projectors(plt, directory: str | Path, out_base: Path, *,
+                      formats: Sequence[str] = ('png',)) -> Optional[Path]:
+    """The radial projector functions ``beta(r)``, one curve per projector.
+
+    Six projectors in one panel, coloured by angular momentum; the two channels that carry
+    two projectors (``l = 0``: 6S/7S and ``l = 1``: 6P/6P') are told apart by a solid and a
+    dashed line.  Amplitude in arbitrary units (that is how ``ld1.x`` writes them), linear
+    ordinate, no title.
+
+    The abscissa is cut where the projectors have actually died out: they are local, and
+    the ``ld1.x`` grid runs to ~100 bohr, which would leave three quarters of the panel
+    empty.
+    """
+    import numpy as np
+
+    try:
+        labels, grid, values = analysis.read_projectors(directory)
+    except (FileNotFoundError, OSError):
+        return None
+    if values.size == 0:
+        return None
+    peak = float(np.max(np.abs(values)))
+    if peak <= 0.0:
+        return None
+    reach = grid[np.any(np.abs(values) > 0.01 * peak, axis=1)]
+    xmax = float(reach.max()) if reach.size else float(grid[-1])
+    xmax = min(max(xmax * 1.1, 3.0), 8.0, float(grid[-1]))
+
+    figure, axis = plt.subplots(figsize=(6.2, 3.9))
+    seen: Dict[int, int] = {}
+    for index, label in enumerate(labels):
+        channel = analysis.state_l(label)
+        position = seen.get(channel, 0)
+        seen[channel] = position + 1
+        colour = orbital_colour(label.rstrip('\u2032'), index)
+        axis.plot(grid, values[:, index],
+                  linestyle='-' if position == 0 else (0, (4, 2)),
+                  color=colour, lw=1.3, label=label)
+
+    axis.set_xlim(0.0, xmax)
+    axis.set_xlabel('r (bohr)')
+    axis.set_ylabel(r'$\beta(r)$  (arb. units)')
+    axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
+    _polish(axis)
+    axis.legend(loc='upper right', frameon=False, ncol=2, columnspacing=1.1)
     return _save(figure, Path(out_base), plt, formats)
 
 
 def export_paper_figures(directory: str | Path, paper_dir: str | Path, *,
                          rcuts=None, window=(-3.0, 3.0),
                          threshold: float = analysis.POLE_THRESHOLD,
-                         radius: float | None = None,
                          formats: Sequence[str] = ('png', 'svg', 'pdf')) -> List[Path]:
-    """Write the two manuscript figures (3 formats), backing the previous files up."""
+    """Write the two paper figures (3 formats) into ``paper_dir``, backing up the old ones.
+
+    The names are the ones the manuscript uses: ``fig3_1_radial`` and ``fig3_3_logderiv``.
+    """
     import shutil
 
     plt = _matplotlib()
@@ -401,52 +329,39 @@ def export_paper_figures(directory: str | Path, paper_dir: str | Path, *,
     paper_dir.mkdir(parents=True, exist_ok=True)
     written: List[Path] = []
     for function, base, extra in (
-            (figure_radial, 'fig3_1_radial',
-             {'rcuts': rcuts, 'xscale': 'log', 'xlim': (0.02, 6.0)}),
+            (figure_radial, 'fig3_1_radial', {'rcuts': rcuts}),
             (figure_logderiv, 'fig3_3_logderiv',
-             {'window': window, 'threshold': threshold, 'radius': radius})):
+             {'window': window, 'threshold': threshold})):
         base_path = paper_dir / base
-        for suffix in formats:
+        for suffix in formats:                      # never lose the previous version
             current = Path(f'{base_path}.{suffix}')
-            backup = Path(f'{base_path}.{suffix}.bak')
-            # write-once: the backup must be the file this script first replaced, not the
-            # previous run's output (re-exporting would otherwise destroy the original)
-            if current.is_file() and not backup.exists():
-                shutil.copy2(current, backup)
+            if current.is_file():
+                shutil.copy2(current, f'{base_path}.{suffix}.bak')
         result = function(plt, directory, base_path, formats=formats, **extra)
         if result is not None:
             written.append(result)
     return written
 
 
-def _orbital_colour(label: str, fallback: int = 0):
-    """Okabe-Ito colour of an orbital, stable across the figures."""
-    order = ['6S', '7S', '6P', '6D', '5F', '6P\u2032', '6P\'']
-    if label in order:
-        return PALETTE[order.index(label) % len(PALETTE)]
-    return PALETTE[fallback % len(PALETTE)]
-
-
 def make_figures(summary: Dict[str, Any], directory: str | Path,
                  out_dir: Optional[str | Path] = None) -> List[Path]:
-    """The three repository figures into ``out_dir`` (``directory`` = one run's files)."""
+    """The two generation figures into ``out_dir`` (``directory`` = one run's files)."""
     out_dir = Path(out_dir) if out_dir is not None else recipe_module.DATA_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     plt = _matplotlib()
     rcuts = {label: entry['rcut']
              for label, entry in (summary['generation'].get('wavefunctions') or {}).items()}
-    radius = summary['criteria'].get('production_rlderiv')
     written: List[Path] = []
     for function, base, extra in (
-            (figure_radial, 'fig_radial',
-             {'rcuts': rcuts, 'xscale': 'log', 'xlim': (0.02, 6.0)}),
+            (figure_radial, 'fig_radial', {'rcuts': rcuts}),
             (figure_radial, 'fig_radial_logx',
-             {'rcuts': rcuts, 'xscale': 'log', 'xlim': (1e-2, 1e2), 'pseudo': 'both'}),
+             {'rcuts': rcuts, 'xscale': 'log', 'xlim': (1e-2, 1e2),
+              'pseudo_line': True}),
+            # linear, like the manuscript figure: a signed L is what one wants to read
             (figure_logderiv, 'fig_logderiv',
              {'window': summary['criteria']['window'],
-              'threshold': summary['criteria']['pole_threshold'],
-              'radius': radius}),
-            (figure_projectors, 'fig_projectors', {'rcuts': rcuts})):
+              'threshold': summary['criteria']['pole_threshold']}),
+            (figure_projectors, 'fig_projectors', {})):
         try:
             path = function(plt, directory, out_dir / base, formats=('png',), **extra)
         except Exception as exception:                  # noqa: BLE001
@@ -642,23 +557,17 @@ def write_report(summary: Dict[str, Any], out_dir: Optional[str | Path] = None) 
 
     lines += ['## Figures', '',
               '![radial](fig_radial.png)', '',
-              'All-electron orbitals as solid lines, pseudo-orbitals dashed; the vertical '
-              'dotted lines are the pseudization radii and the grey band is the core '
-              '(`r < min r_c`). The lower panel is `|u_AE - u_PS| / max|u_AE|` on a log '
-              'ordinate, which is where "the tails agree" becomes a number. The '
-              'all-electron core states (4F, 5D) have no pseudo-orbital and are not '
-              'drawn.', '',
+              'All-electron orbitals as solid lines, pseudo-orbitals as open symbols; the '
+              'vertical dotted lines are the pseudization radii. The all-electron core '
+              'states (4F, 5D) have no pseudo-orbital and are not drawn.', '',
               '![log derivatives](fig_logderiv.png)', '',
-              'All-electron curves solid, pseudo curves as open circles every tenth point, '
-              'one colour per angular momentum channel; the ordinate is linear and the '
-              'comment in the x label is the radius at which the logarithmic derivative '
-              'was evaluated. The panel underneath is the pole table -- the ghost '
-              'criterion -- with the AE and PS pole energies and their displacement.', '',
+              'All-electron curves solid, pseudo curves dotted, one colour per angular '
+              'momentum channel. Pole correspondence is in the table above, not marked on '
+              'the figure.', '',
               '![projectors](fig_projectors.png)', '',
-              'The six radial projector functions `beta(r)`, coloured by orbital (the '
-              'second projector of a channel is dashed, `6P` and `6P\u2032`). Upper panel: '
-              'absolute value on a logarithmic ordinate; lower panel: each normalized to '
-              'its own maximum. The dotted vertical lines are the pseudization radii.', '']
+              'The six radial projector functions `beta(r)`, coloured by angular momentum '
+              '(the two channels with two projectors, `l = 0` and `l = 1`, use a solid and '
+              'a dashed line), amplitude in arbitrary units.', '']
 
     path = out / 'REPORT.md'
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')

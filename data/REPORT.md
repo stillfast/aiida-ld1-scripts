@@ -107,13 +107,13 @@ The production pseudopotential uses the recipe value (`rlderiv = 5.0`); this sca
 
 ![radial](fig_radial.png)
 
-All-electron orbitals as solid lines, pseudo-orbitals dashed; the vertical dotted lines are the pseudization radii and the grey band is the core (`r < min r_c`). The lower panel is `|u_AE - u_PS| / max|u_AE|` on a log ordinate, which is where "the tails agree" becomes a number. The all-electron core states (4F, 5D) have no pseudo-orbital and are not drawn.
+All-electron orbitals as solid lines, pseudo-orbitals as open symbols; the vertical dotted lines are the pseudization radii. The all-electron core states (4F, 5D) have no pseudo-orbital and are not drawn.
 
 ![log derivatives](fig_logderiv.png)
 
-All-electron curves solid, pseudo curves as open circles every tenth point, one colour per angular momentum channel; the ordinate is linear and the comment in the x label is the radius at which the logarithmic derivative was evaluated. The panel underneath is the pole table -- the ghost criterion -- with the AE and PS pole energies and their displacement.
+All-electron curves solid, pseudo curves dotted, one colour per angular momentum channel. Pole correspondence is in the table above, not marked on the figure.
 
 ![projectors](fig_projectors.png)
 
-The six radial projector functions `beta(r)`, coloured by orbital (the second projector of a channel is dashed, `6P` and `6P′`). Upper panel: absolute value on a logarithmic ordinate; lower panel: each normalized to its own maximum. The dotted vertical lines are the pseudization radii.
+The six radial projector functions `beta(r)`, coloured by angular momentum (the two channels with two projectors, `l = 0` and `l = 1`, use a solid and a dashed line), amplitude in arbitrary units.
 

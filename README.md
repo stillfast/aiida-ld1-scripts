@@ -165,35 +165,39 @@ belongs in the SI as a 5-row table — plotting it hides the column that decides
 
 ## Figure conventions
 
-The figures follow the style of the manuscript's own figure script (Torres & Kaloni,
-*Comput. Mater. Sci.* **171** (2020) 109237, Figs. 2 and 3), so that `3-analyze/figures.py
---paper DIR` produces files that sit in the paper without redrawing:
+The two generation figures follow Torres & Kaloni, *Comput. Mater. Sci.* **171** (2020)
+109237 (Figs. 2 and 3), and `3-analyze/figures.py --paper DIR` writes them into a
+manuscript directory as `fig3_1_radial.*` / `fig3_3_logderiv.*` (png, svg, pdf; the
+previous files are kept as `*.bak`):
 
 | element | convention |
 |---|---|
-| size | **7.0 in** (double column), one `rcParams` block for every figure |
-| fonts / lines | 8.5 pt base, 7.5 pt ticks and legend, 0.8 pt axes, minor ticks on every axis |
-| all-electron | **solid**, lw 1.5 |
-| pseudo | **dashed**, lw 1.0 (radial) / **open circles every tenth point** (log derivative) |
-| pseudization radius | vertical dotted line per channel, `rc` in the legend |
-| core region | light grey span for `r < min(rc)` |
-| abscissa | bohr on the bottom, **angstrom on the top edge** |
-| legend | **outside** the axes (right), with the `rc` values |
-| titles | **none** — the manuscript caption carries it |
-| colour | Okabe-Ito, one fixed colour per orbital; AE/PS is never encoded by colour |
-| vector | `png` + `svg` + `pdf`; text stays text (`svg.fonttype=none`, `pdf.fonttype=42`) |
+| all-electron curve | **solid line** |
+| pseudo-orbital | **open symbols** (radial) / **dotted line** (log derivative) |
+| projectors | one curve per `beta`, colour by `l`; channels with two projectors (6S/7S, 6P/6P′) use solid vs dashed |
+| pseudization radius | vertical **dotted** line, one per channel, with `rc` in bohr |
+| colour | Okabe–Ito, one fixed colour per `l` channel; AE/PS never distinguished by colour |
+| titles | **none** — the axes are labelled and the manuscript supplies the caption |
+| extras | none: no inset, no pole markers, no annotations on the curves |
 
-Each figure carries its own quantitative panel instead of relying on the reader's eye:
+`fig_logderiv.png` is the same linear plot as the manuscript `fig3_3_logderiv` (a
+`log_ordinate=True` option exists for a `log |L|` variant — a signed `L` cannot be
+logarithmic — but nothing ships with it). Two other files are repository-only:
 
-| file | panels |
+| file | content |
 |---|---|
-| `fig_radial.png` | radial functions + `\|u_AE - u_PS\|/max\|u\|` (log) underneath |
-| `fig_logderiv.png` | `L(E)` (linear; the x label states the evaluation radius) + the pole table |
-| `fig_projectors.png` | `\|beta\|` (log) + `beta/beta_max` |
-| `fig_radial_logx.png` | the same radial figure over four decades, `1e-2 … 1e2 bohr` |
+| `fig_projectors.png` | the six `beta(r)`, not part of `fig3_1/fig3_3` |
+| `fig_radial_logx.png` | logarithmic abscissa `1e-2 … 1e2 bohr`, pseudo curve dashed *and* open symbols, linear ordinate |
+| units | **bohr** (not Å as in the paper: this recipe's cards and `ld1.test` are in bohr) |
+| labels | `AE` / `PS` — the pseudopotential is norm-conserving, not PAW |
 
-`export_paper_figures()` backs the replaced files up as `*.bak`, **write-once**: the backup
-is the file this script first replaced, so re-exporting cannot destroy the original.
+The `rlderiv` scan is **not plotted**. A figure of it hides the column that decides (the
+pole verdict) and its meaning is not evident from the picture; it is a 5-row SI table.
+
+Two renderer details are load-bearing and are covered by `tests/test_figures.py`:
+`bbox_inches='tight'` alone does **not** include an inset axes' decorations (so they are
+passed as `bbox_extra_artists`), and `Figure.get_tightbbox` is in inches while
+`Axes.get_tightbbox` is in pixels.
 
 ## Tests
 
