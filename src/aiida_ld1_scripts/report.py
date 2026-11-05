@@ -104,9 +104,9 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
     ``xscale='log'`` is a diagnostic variant: with ``xlim=(1e-2, 1e2)`` it covers the whole
     orbital, from the core to the exponential tail.  ``pseudo_line=True`` also joins the
     pseudo points with a dashed line (on four decades of abscissa the symbols alone are too
-    sparse to follow), and ``log_ordinate=True`` puts ``|u|`` on a logarithmic axis, without
-    which everything beyond ~10 bohr sits on the zero line.  The sign of ``u`` (its nodes)
-    is not readable in that mode.
+    sparse to follow).  ``log_ordinate=True`` optionally puts ``|u|`` on a logarithmic axis
+    -- the shipped diagnostic keeps a **linear** ordinate, so beyond ~10 bohr the curves sit
+    on the zero line by construction, which is the honest picture of that range.
     """
     import numpy as np
 
