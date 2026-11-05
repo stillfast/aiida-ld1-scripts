@@ -1,0 +1,93 @@
+# The single source of truth for the 6p25 uranium pseudopotential.
+#
+# Everything the pipeline submits is derived from this file: the generation run, the
+# `rlderiv` scan and the transferability test.  Change a number here, re-run
+# 2-submit/, and the whole chain is regenerated with new provenance.
+#
+# The recipe itself is the one recorded in
+# `uranium-ppgen/ai_v1/6p25/U.in` (the "6p25" naming is historical: the second 6P
+# projector is pinned at -0.25 Ry).
+name: uranium-14ve-6p25
+description: >-
+  U, 14 valence electrons (5f3 6s2 6p6 6d1 7s2), scalar-relativistic,
+  norm-conserving, PBE, Troullier-Martins, with a sixth (unoccupied) 6P projector.
+
+# ---------------------------------------------------------------- generation run
+# iswitch = 3: build the pseudopotential from these cards.
+generation:
+  input:
+    title: U 14 valence electrons (5f3 6s2 6p6 6d1 7s2) scalar-relativistic NC, PBE
+    atom: U
+    dft: PBE
+    config: '[Rn] 5f3 6d1 7s2'
+    rel: 1
+    iswitch: 3
+    nld: 4
+    rlderiv: 5.0
+    eminld: -3.0
+    emaxld: 3.0
+    deld: 0.02
+  inputp:
+    pseudotype: 2
+    file_pseudopw: U.pbe-n-nc.UPF
+    author: aiida-ld1-scripts
+    lloc: -2
+    rcloc: 2.2
+    nlcc: true
+    tm: true
+    new_core_ps: true
+    file_beta: U.beta
+  # label n l occ ener rcut rcutus isws
+  states:
+    - [6S, 1, 0, 2.0, 0.0, 1.5, 1.5, 0.0]
+    - [7S, 2, 0, 2.0, 0.0, 1.2, 1.2, 0.0]
+    - [6P, 2, 1, 6.0, 0.0, 1.6, 1.6, 0.0]
+    - [6D, 3, 2, 1.0, 0.0, 2.4, 2.4, 0.0]
+    - [5F, 4, 3, 3.0, 0.0, 1.3, 1.3, 0.0]
+    - [6P, 2, 1, 0.0, -0.25, 1.6, 1.6, 0.0]   # extra projector, unoccupied
+  test:                     # the Bessel box test inside the generation run
+    nconf: 1
+    configts: ['5f3 6s2 6p6 6d1 7s2']
+    ecutmin: 20.0
+    ecutmax: 200.0
+    decut: 20.0
+    rm: 30.0
+
+# ------------------------------------------------------- transferability (iswitch = 2)
+# Test the generated pseudopotential against five atomic configurations in ONE run
+# (nconf = 5); the plugin fills &test.file_pseudo from the generation output.
+configts:
+  input:
+    title: U 14 valence electrons, transferability test
+    atom: U
+    dft: PBE
+    config: '[Rn] 5f3 6d1 7s2'
+    rel: 1
+    iswitch: 2
+    nld: 4
+    rlderiv: 3.0
+    eminld: -3.0
+    emaxld: 3.0
+    deld: 0.02
+  test:
+    nconf: 5
+    configts:
+      - '5f3 6s2 6p6 6d1 7s2'
+      - '5f3 6s2 6p6 6d0 7s2'
+      - '5f3 6s2 6p6 6d1 7s1'
+      - '5f3 6s2 6p6 6d2 7s1'
+      - '5f3 6s2 6p6 6d2 7s0'
+    ecutmin: 20.0
+    ecutmax: 200.0
+    decut: 20.0
+    rm: 30.0
+
+# --------------------------------------------------------------- rlderiv scan
+# One full generation per value: rlderiv sets the radius at which the logarithmic
+# derivatives are evaluated, so it changes the whole pseudopotential's quality knob.
+rlderiv_scan:
+  values: [4.0, 5.0, 6.0, 7.0, 8.0]
+  # analysis window and criteria (see src/aiida_ld1_scripts/analysis.py)
+  window: [-3.0, 3.0]
+  pole_threshold: 20.0      # |L| above which the logarithmic derivative diverges
+  pole_tolerance: 0.04      # Ry; two poles are "the same" within tolerance + grid step
