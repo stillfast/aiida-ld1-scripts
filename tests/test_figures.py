@@ -218,3 +218,23 @@ def test_the_log_x_variant_only_samples_the_visible_range(captured):
     for line in symbols:
         xdata = line.get_xdata()
         assert xdata.min() >= low and xdata.max() <= high
+
+
+def test_the_diagnostic_variant_is_log_log_over_four_decades(captured):
+    """``fig_radial_logx``: x from 1e-2 to 1e2, |u| logarithmic, PS dashed + symbols."""
+    render, _plt = captured
+    figure, _renderer, _Text = render('figure_radial', rcuts={'6S': 1.5, '5F': 1.3},
+                                      xscale='log', xlim=(1e-2, 1e2),
+                                      pseudo_line=True, log_ordinate=True)
+    axes = figure.axes[0]
+    assert axes.get_xscale() == 'log' and axes.get_yscale() == 'log'
+    assert axes.get_xlim() == pytest.approx((0.01, 100.0))
+    dashed = [line for line in axes.get_lines() if line.get_linestyle() == '--']
+    symbols = [line for line in axes.get_lines() if line.get_marker() == 'o']
+    assert len(dashed) == 2 and len(symbols) == 2
+    # the symbols must carry the channel colour, not matplotlib's default cycle
+    solid = [line for line in axes.get_lines()
+             if line.get_linestyle() == '-' and line.get_color() != '0.85']
+    assert [line.get_color() for line in symbols] == [line.get_color() for line in solid]
+    assert axes.get_ylabel().startswith('|u(r)|')
+    assert axes.get_title() == '' and len(axes.child_axes) == 0

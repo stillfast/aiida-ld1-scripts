@@ -88,7 +88,8 @@ def _sample(grid, count: int = 34, *, logarithmic: bool = False):
 
 
 def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
-                  xscale: str = 'linear',
+                  xscale: str = 'linear', xlim=None, pseudo_line: bool = False,
+                  log_ordinate: bool = False,
                   formats: Sequence[str] = ('png',)) -> Optional[Path]:
     """AE vs pseudo radial functions, in the style of Torres & Kaloni Fig. 2 (left).
 
@@ -100,10 +101,15 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
     Only the pseudized channels are drawn; the all-electron run also writes core states
     (4F, 5D) that the pseudopotential has no orbital for.
 
-    ``xscale='log'`` is a diagnostic variant: it spreads out the region where the two
-    orbitals are *meant* to differ (``r < rcut``), which a linear axis compresses into a
-    few pixels.
+    ``xscale='log'`` is a diagnostic variant: with ``xlim=(1e-2, 1e2)`` it covers the whole
+    orbital, from the core to the exponential tail.  ``pseudo_line=True`` also joins the
+    pseudo points with a dashed line (on four decades of abscissa the symbols alone are too
+    sparse to follow), and ``log_ordinate=True`` puts ``|u|`` on a logarithmic axis, without
+    which everything beyond ~10 bohr sits on the zero line.  The sign of ``u`` (its nodes)
+    is not readable in that mode.
     """
+    import numpy as np
+
     directory = Path(directory)
     ae_file, ps_file = directory / 'ld1.wfc', directory / 'ld1ps.wfc'
     if not (ae_file.is_file() and ps_file.is_file()):
@@ -113,9 +119,16 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
 
     figure, axis = plt.subplots(figsize=(6.4, 4.2))
     logarithmic = str(xscale).lower() == 'log'
-    # only sample where the symbols can be seen: the ld1 grid runs out to ~100 bohr
-    high = min(8.0, float(grid[-1]))
-    visible = grid <= high
+    # only use (and sample) the window that is actually shown: the ld1 grid runs to ~100 bohr
+    if xlim:
+        low, high = float(xlim[0]), float(xlim[1])
+    elif logarithmic:
+        # a log axis cannot start at 0; the grid's first positive point would be ~1e-5,
+        # which is not interesting -- start at 1e-4 unless told otherwise
+        low, high = max(float(grid[grid > 0].min()), 1e-4), min(8.0, float(grid[-1]))
+    else:
+        low, high = 0.0, min(8.0, float(grid[-1]))
+    visible = (grid >= low) & (grid <= high) if logarithmic else (grid <= high)
     indices = _sample(grid[visible], logarithmic=logarithmic)
     rcuts = rcuts or {}
 
@@ -129,18 +142,27 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
 
         cutoff = rcuts.get(label)
         name = label if cutoff is None else f'{label} (r$_c$ = {cutoff:.2f} bohr)'
-        axis.plot(grid, all_electron, '-', color=colour, lw=1.2, label=name)
-        axis.plot(grid[visible][indices], pseudo[visible][indices], 'o',
-                  mfc='none', mec=colour, ms=3.4, mew=0.8)
+        shown_ae, shown_ps = all_electron, pseudo
+        if log_ordinate:
+            shown_ae, shown_ps = np.abs(all_electron), np.abs(pseudo)
+        axis.plot(grid[visible], shown_ae[visible], '-', color=colour, lw=1.2, label=name)
+        if pseudo_line:
+            axis.plot(grid[visible], shown_ps[visible], '--', color=colour, lw=0.9,
+                      alpha=0.95)
+        axis.plot(grid[visible][indices], shown_ps[visible][indices], 'o',
+                  color=colour, mfc='none', mec=colour, ms=3.2, mew=0.8)
         if cutoff is not None:
             axis.axvline(cutoff, color=colour, ls=':', lw=0.8, alpha=0.75)
 
     axis.set_xlabel('r (bohr)')
-    axis.set_ylabel('u(r) = r·R(r)  (arb. units)')
+    if log_ordinate:
+        axis.set_yscale('log')
+        axis.set_ylabel('|u(r)| = |r·R(r)|  (arb. units)')
+    else:
+        axis.set_ylabel('u(r) = r·R(r)  (arb. units)')
     if logarithmic:
-        positive = grid[grid > 0]
         axis.set_xscale('log')
-        axis.set_xlim(max(float(positive.min()), 1e-4), high)
+        axis.set_xlim(low, high)
     else:
         axis.set_xlim(0.0, high)
     axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
@@ -231,7 +253,9 @@ def make_figures(summary: Dict[str, Any], directory: str | Path,
     written: List[Path] = []
     for function, base, extra in (
             (figure_radial, 'fig_radial', {'rcuts': rcuts}),
-            (figure_radial, 'fig_radial_logx', {'rcuts': rcuts, 'xscale': 'log'}),
+            (figure_radial, 'fig_radial_logx',
+             {'rcuts': rcuts, 'xscale': 'log', 'xlim': (1e-2, 1e2),
+              'pseudo_line': True, 'log_ordinate': True}),
             (figure_logderiv, 'fig_logderiv',
              {'window': summary['criteria']['window'],
               'threshold': summary['criteria']['pole_threshold']})):
