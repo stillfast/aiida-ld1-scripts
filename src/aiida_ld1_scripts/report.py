@@ -74,11 +74,14 @@ def _matplotlib():
 
 
 def _polish(axis, *, minor: int = 2):
-    """Minor ticks + a thin zero line; layout is untouched."""
-    from matplotlib.ticker import AutoMinorLocator
+    """Minor ticks; layout and marks are untouched (``AutoMinorLocator`` refuses log axes)."""
+    from matplotlib.ticker import AutoMinorLocator, LogLocator
 
-    for which in (axis.xaxis, axis.yaxis):
-        which.set_minor_locator(AutoMinorLocator(minor))
+    for name, which in (('x', axis.xaxis), ('y', axis.yaxis)):
+        if getattr(axis, f'get_{name}scale')() == 'log':
+            which.set_minor_locator(LogLocator(base=10.0, subs=(2.0, 5.0), numticks=40))
+        else:
+            which.set_minor_locator(AutoMinorLocator(minor))
 
 
 def _save(figure, out_base: Path, plt, formats: Sequence[str]) -> Path:
