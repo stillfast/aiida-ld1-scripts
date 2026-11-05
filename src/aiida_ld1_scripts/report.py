@@ -16,100 +16,213 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from . import analysis, recipe as recipe_module
 
 #: channels used as criteria (the box test is not trustworthy for l >= 3)
 RELIABLE_MAX_L = 2
 
-COLOURS = ('#1f77b4', '#d62728', '#2ca02c', '#9467bd', '#ff7f0e')
+#: Okabe-Ito: colour-blind safe, and one fixed colour per angular-momentum channel.  AE
+#: and PS are told apart by the line style / symbol, never by the colour alone -- the
+#: two curves of one channel are the same physical object.
+PALETTE = ('#0072B2',   # blue
+           '#D55E00',   # vermillion
+           '#009E73',   # bluish green
+           '#CC79A7',   # reddish purple
+           '#E69F00',   # orange
+           '#56B4E9')
 
 
 def _matplotlib():
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
+    # a paper figure, not a debugging plot
+    plt.rcParams.update({'font.size': 9, 'axes.titlesize': 10, 'axes.labelsize': 9.5,
+                         'legend.fontsize': 8, 'xtick.labelsize': 8.5,
+                         'ytick.labelsize': 8.5})
     return plt
 
 
-def _retrieved_dir_for(node):
-    """A directory with the files of one calculation (temp dir owned by the caller)."""
-    import tempfile
+def _save(figure, out_base: Path, plt, formats: Sequence[str]) -> Path:
+    """Save ``out_base`` in every requested format; returns the base path.
 
-    from . import collect
+    ``bbox_inches='tight'`` is what keeps a long ylabel or a two-line title from being
+    cut off.  It is **not sufficient** on its own: matplotlib's tight bounding box does
+    not include the decorations of an inset (child) axes, so the inset's tick labels and
+    title would be cropped.  They are passed as extra artists explicitly.
+    """
+    out_base.parent.mkdir(parents=True, exist_ok=True)
+    extra = []
+    for parent in figure.axes:
+        for child in parent.child_axes:
+            extra.extend(child.get_default_bbox_extra_artists() or [])
+    for suffix in formats:
+        figure.savefig(f'{out_base}.{suffix}', dpi=300, bbox_inches='tight',
+                       bbox_extra_artists=extra or None)
+    plt.close(figure)
+    return out_base
 
-    handle = tempfile.mkdtemp(prefix='ld1-report-')
-    return collect.dump_retrieved(node, Path(handle))
 
-
-def figure_radial(plt, node, out: Path) -> Optional[Path]:
-    """AE vs PS ``u(r)`` for every channel of the generation run."""
+def _sample(grid, count: int = 34):
+    """Indices at which to draw the open symbols (a curve, not a thick band)."""
     import numpy as np
 
-    directory = Path(_retrieved_dir_for(node))
+    step = max(1, len(grid) // count)
+    return np.arange(0, len(grid), step)
+
+
+def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
+                  formats: Sequence[str] = ('png',)) -> Optional[Path]:
+    """AE vs pseudo radial functions, in the style of Torres & Kaloni Fig. 2 (left).
+
+    All-electron orbitals are **solid lines**, pseudo-orbitals **open symbols** (not a
+    dashed line: a dashed line hides underneath the solid one exactly where the two must
+    coincide), and each pseudized channel gets a vertical dotted line at its ``rcut``.
+    Only the pseudized channels are drawn; the all-electron run also writes core states
+    (4F, 5D) that the pseudopotential has no orbital for.
+
+    ``directory`` must contain ``ld1.wfc`` (all-electron) and ``ld1ps.wfc`` (pseudo +
+    phase-aligned all-electron in its second half).
+    """
+    import numpy as np
+
+    directory = Path(directory)
     ae_file, ps_file = directory / 'ld1.wfc', directory / 'ld1ps.wfc'
     if not (ae_file.is_file() and ps_file.is_file()):
         return None
-    ae_labels, ae_r, ae_u = analysis.read_wfc(ae_file)
-    # ld1ps.wfc holds the pseudo orbitals in its first half and the all-electron ones
-    # in its second; only the first half is the pseudopotential's wavefunction
-    ps_labels, ps_r, ps_u, _ae_again = analysis.read_wfc_halves(ps_file)
-    ps_index = {label: index for index, label in enumerate(ps_labels)}
+    ae_labels, grid, ae_values = analysis.read_wfc(ae_file)
+    ps_labels, _, ps_values, _aligned = analysis.read_wfc_halves(ps_file)
 
-    figure, axes = plt.subplots(figsize=(7.2, 4.6))
-    for index, label in reversed(list(enumerate(ae_labels))):
-        if label not in ps_index:
-            continue                      # e.g. 4F / 5D: core states of the AE run only
-        colour = COLOURS[index % len(COLOURS)]
-        pseudo = ps_u[:, ps_index[label]]
-        aligned, _flipped = analysis.align_phase(ae_u[:, index], pseudo)
-        axes.plot(ae_r, aligned, '-', color=colour, label=f'{label} AE')
-        axes.plot(ps_r, pseudo, '--', color=colour, label=f'{label} PS')
-    axes.set_xlabel('r (bohr)')
-    axes.set_ylabel('u(r) = r·R(r)')
-    axes.set_xlim(0.0, min(8.0, float(ae_r[-1])))
-    axes.axhline(0.0, color='0.8', lw=0.6, zorder=0)
-    axes.set_title('radial functions: all-electron (solid) vs pseudo (dashed), '
-                   'phase aligned\nthey must coincide outside the rcut radius')
-    axes.legend(fontsize=7, ncol=2, frameon=False)
-    figure.tight_layout()
-    figure.savefig(out, dpi=150)
-    plt.close(figure)
-    return out
+    figure, axis = plt.subplots(figsize=(7.0, 4.4))
+    inset = axis.inset_axes([0.61, 0.47, 0.36, 0.36])
+    indices = _sample(grid)
+    rcuts = rcuts or {}
+
+    for position, label in enumerate(ps_labels):
+        if label not in ae_labels:
+            continue
+        colour = PALETTE[position % len(PALETTE)]
+        all_electron = ae_values[:, ae_labels.index(label)]
+        pseudo = ps_values[:, position]
+        all_electron, _flipped = analysis.align_phase(all_electron, pseudo)
+
+        cutoff = rcuts.get(label)
+        name = label if cutoff is None else f'{label} (r$_c$ = {cutoff:.2f} bohr)'
+        axis.plot(grid, all_electron, '-', color=colour, lw=1.2, label=name)
+        axis.plot(grid[indices], pseudo[indices], 'o', mfc='none', mec=colour,
+                  ms=3.4, mew=0.8)
+        if cutoff is not None:
+            axis.axvline(cutoff, color=colour, ls=':', lw=0.8, alpha=0.75)
+        difference = np.abs(all_electron - pseudo)
+        inset.semilogy(grid[grid > 1e-3], np.maximum(difference[grid > 1e-3], 1e-30),
+                       '-', color=colour, lw=0.8)
+
+    axis.set_xlabel('r (bohr)')
+    axis.set_ylabel('u(r) = r·R(r)  (arb. units)')
+    axis.set_xlim(0.0, min(8.0, float(grid[-1])))
+    axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
+    axis.set_title('U: all-electron radial orbitals (solid) vs pseudo-orbitals '
+                   '(open symbols)\nvertical dotted lines: pseudization radius r$_c$')
+    for handle in axis.get_legend_handles_labels()[0]:
+        handle.set_label(handle.get_label())
+    axis.legend(loc='center right', frameon=False, ncol=1)
+
+    inset.set_title('$|u_{AE} - u_{PS}|$', fontsize=7.5)
+    inset.set_xlabel('r (bohr)', fontsize=7)
+    inset.tick_params(labelsize=6.5)
+    inset.set_xlim(0.0, min(8.0, float(grid[-1])))
+    inset.axhline(1e-3, color='0.6', ls='--', lw=0.6)
+    dropped = [label for label in ae_labels if label not in ps_labels]
+    if dropped:
+        figure.text(0.01, 0.005, 'not drawn (all-electron core states, no pseudo-orbital): '
+                    + ', '.join(dropped), fontsize=6.5, color='0.35', ha='left', va='bottom')
+    return _save(figure, Path(out_base), plt, formats)
 
 
-def figure_logderiv(plt, node, out: Path, *, window=(-3.0, 3.0),
-                    threshold: float = analysis.POLE_THRESHOLD) -> Optional[Path]:
-    """AE vs PS logarithmic derivatives, with the poles marked."""
+def figure_logderiv(plt, directory: str | Path, out_base: Path, *,
+                    window=(-3.0, 3.0), threshold: float = analysis.POLE_THRESHOLD,
+                    formats: Sequence[str] = ('png',)) -> Optional[Path]:
+    """Logarithmic derivatives, in the style of Torres & Kaloni Fig. 3.
+
+    All-electron curves are **solid**, pseudo curves **dotted** (the paper's convention).
+    The ghost criterion is *pole correspondence*, so the poles are not left to the eye:
+    an all-electron pole is a vertical dashed line and the nearest pseudo pole is a
+    triangle on the axis, so "one line, one triangle" is the test.
+
+    The y range is taken from the data (``0.5``–``99.5`` percentile) instead of a fixed
+    ``+-30``: a hard cut made every pole look like a vertical stroke and hid where it is.
+    """
     import numpy as np
 
-    directory = Path(_retrieved_dir_for(node))
+    directory = Path(directory)
     if not (directory / 'ld1.dlog').is_file():
         return None
-    ae = analysis.read_dlog(directory / 'ld1.dlog')
-    ps = analysis.read_dlog(directory / 'ld1ps.dlog')
-    channels = [channel for channel in ae if channel != 'energy']
-    figure, axes = plt.subplots(len(channels), 1, figsize=(7.2, 1.5 * len(channels)),
-                                sharex=True)
-    axes = np.atleast_1d(axes)
-    for axis, channel, colour in zip(axes, channels, COLOURS):
-        axis.plot(ae['energy'], ae[channel], '-', color=colour, lw=1.0, label='AE')
-        axis.plot(ps['energy'], ps[channel], '--', color='k', lw=0.9, label='PS')
-        for pole in analysis.find_poles(ae['energy'], ae[channel], threshold):
-            axis.axvline(pole, color=colour, lw=0.6, alpha=0.5)
-        axis.set_ylabel(channel)
-        axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
-        axis.set_ylim(-30, 30)
-        if channel == channels[0]:
-            axis.legend(fontsize=7, frameon=False, loc='upper left')
-    axes[-1].set_xlabel('E (Ry)')
-    axes[-1].set_xlim(*window)
-    axes[0].set_title('logarithmic derivative: all-electron (colour) vs pseudo (black)')
-    figure.tight_layout()
-    figure.savefig(out, dpi=150)
-    plt.close(figure)
-    return out
+    all_electron = analysis.read_dlog(directory / 'ld1.dlog')
+    pseudo = analysis.read_dlog(directory / 'ld1ps.dlog')
+    energies = all_electron['energy']
+    mask = (energies >= window[0]) & (energies <= window[1])
+    channels = [channel for channel in all_electron if channel != 'energy']
+
+    figure, axis = plt.subplots(figsize=(7.0, 4.6))
+    for position, channel in enumerate(channels):
+        colour = PALETTE[position % len(PALETTE)]
+        axis.plot(energies[mask], all_electron[channel][mask], '-', color=colour,
+                  lw=1.1, label=f'{channel} AE')
+        axis.plot(energies[mask], pseudo[channel][mask], ':', color=colour,
+                  lw=1.7, label=f'{channel} PS')
+        for pole in analysis.find_poles(energies[mask], all_electron[channel][mask],
+                                        threshold):
+            axis.axvline(pole, color=colour, ls='--', lw=0.7, alpha=0.65)
+            axis.annotate(f'{pole:+.2f}', xy=(pole, 1.0), xycoords=('data', 'axes fraction'),
+                          xytext=(2, -2), textcoords='offset points', rotation=90,
+                          fontsize=6.5, color=colour, va='top')
+        for pole in analysis.find_poles(energies[mask], pseudo[channel][mask], threshold):
+            axis.plot([pole], [0.0], '^', color=colour, ms=4.5, clip_on=False,
+                      zorder=5)
+
+    usable = np.concatenate([np.abs(all_electron[channel][mask]) for channel in channels])
+    low, high = np.percentile(usable, [0.5, 99.5])
+    limit = max(high, 21.0)
+    axis.set_ylim(-limit, limit)
+    axis.set_xlim(*window)
+    axis.set_xlabel('E (Ry)')
+    axis.set_ylabel('logarithmic derivative  $L_l(E)$')
+    axis.set_title('U: logarithmic derivative, all-electron (solid) vs pseudo (dotted)\n'
+                   'dashed vertical lines: AE poles, triangles on the axis: PS poles')
+    axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
+    axis.legend(loc='upper left', frameon=False, ncol=2, fontsize=7)
+    return _save(figure, Path(out_base), plt, formats)
+
+
+def export_paper_figures(directory: str | Path, paper_dir: str | Path, *,
+                         rcuts=None, window=(-3.0, 3.0),
+                         threshold: float = analysis.POLE_THRESHOLD,
+                         formats: Sequence[str] = ('png', 'svg', 'pdf')) -> List[Path]:
+    """Write the two paper figures (3 formats) into ``paper_dir``, backing up the old ones.
+
+    The names are the ones the manuscript uses: ``fig3_1_radial`` and ``fig3_3_logderiv``.
+    """
+    import shutil
+
+    plt = _matplotlib()
+    paper_dir = Path(paper_dir)
+    paper_dir.mkdir(parents=True, exist_ok=True)
+    written: List[Path] = []
+    for function, base, extra in (
+            (figure_radial, 'fig3_1_radial', {'rcuts': rcuts}),
+            (figure_logderiv, 'fig3_3_logderiv',
+             {'window': window, 'threshold': threshold})):
+        base_path = paper_dir / base
+        for suffix in formats:                      # never lose the previous version
+            current = Path(f'{base_path}.{suffix}')
+            if current.is_file():
+                shutil.copy2(current, f'{base_path}.{suffix}.bak')
+        result = function(plt, directory, base_path, formats=formats, **extra)
+        if result is not None:
+            written.append(result)
+    return written
 
 
 def figure_rlderiv(plt, summary: Dict[str, Any], out: Path) -> Optional[Path]:
@@ -166,28 +279,28 @@ def figure_rlderiv(plt, summary: Dict[str, Any], out: Path) -> Optional[Path]:
     return out
 
 
-def make_figures(summary: Dict[str, Any], nodes: Dict[str, Any],
+def make_figures(summary: Dict[str, Any], directory: str | Path,
                  out_dir: Optional[str | Path] = None) -> List[Path]:
-    """All three figures; returns the ones that were actually written."""
-    out = Path(out_dir) if out_dir is not None else recipe_module.DATA_DIR
-    out.mkdir(parents=True, exist_ok=True)
+    """The three repository figures into ``out_dir`` (``directory`` = one run's files)."""
+    out_dir = Path(out_dir) if out_dir is not None else recipe_module.DATA_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
     plt = _matplotlib()
+    rcuts = {label: entry['rcut']
+             for label, entry in (summary['generation'].get('wavefunctions') or {}).items()}
     written: List[Path] = []
-    generation = nodes.get('generation')
-    if generation is not None:
-        for function, name, extra in (
-                (figure_radial, 'fig_radial.png', {}),
-                (figure_logderiv, 'fig_logderiv.png',
-                 {'window': summary['criteria']['window'],
-                  'threshold': summary['criteria']['pole_threshold']})):
-            try:
-                path = function(plt, generation, out / name, **extra)
-            except Exception as exception:                  # noqa: BLE001
-                print(f'  warning: {name} failed: {exception}')
-                path = None
-            if path is not None:
-                written.append(path)
-    path = figure_rlderiv(plt, summary, out / 'fig_rlderiv.png')
+    for function, base, extra in (
+            (figure_radial, 'fig_radial', {'rcuts': rcuts}),
+            (figure_logderiv, 'fig_logderiv',
+             {'window': summary['criteria']['window'],
+              'threshold': summary['criteria']['pole_threshold']})):
+        try:
+            path = function(plt, directory, out_dir / base, formats=('png',), **extra)
+        except Exception as exception:                  # noqa: BLE001
+            print(f'  warning: {base} failed: {exception}')
+            path = None
+        if path is not None:
+            written.append(Path(f'{path}.png'))
+    path = figure_rlderiv(plt, summary, out_dir / 'fig_rlderiv.png')
     if path is not None:
         written.append(path)
     return written

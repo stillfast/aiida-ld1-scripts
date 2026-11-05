@@ -163,10 +163,32 @@ on the median alone. That matters: the smallest median belongs to `rlderiv = 8`
 changing it, and the choice of `r` remains a diagnostic setting. In a paper the scan
 belongs in the SI as a 5-row table — plotting it hides the column that decides.
 
+## Figure conventions
+
+The two generation figures follow Torres & Kaloni, *Comput. Mater. Sci.* **171** (2020)
+109237 (Figs. 2 and 3), and `3-analyze/figures.py --paper DIR` writes them into a
+manuscript directory as `fig3_1_radial.*` / `fig3_3_logderiv.*` (png, svg, pdf; the
+previous files are kept as `*.bak`):
+
+| element | convention |
+|---|---|
+| all-electron curve | **solid line** |
+| pseudo-orbital | **open symbols** (radial) / **dotted line** (log derivative) |
+| pseudization radius | vertical **dotted** line, one per channel, with `rc` in bohr |
+| poles | AE pole = dashed vertical line, PS pole = triangle on the axis |
+| colour | Okabe–Ito, one fixed colour per `l` channel; AE/PS never distinguished by colour |
+| units | **bohr** (not Å as in the paper: this recipe's cards and `ld1.test` are in bohr) |
+| labels | `AE` / `PS` — the pseudopotential is norm-conserving, not PAW |
+
+Two renderer details are load-bearing and are covered by `tests/test_figures.py`:
+`bbox_inches='tight'` alone does **not** include an inset axes' decorations (so they are
+passed as `bbox_extra_artists`), and `Figure.get_tightbbox` is in inches while
+`Axes.get_tightbbox` is in pixels.
+
 ## Tests
 
 ```bash
-pytest        # 16 tests, no database needed
+pytest        # 26 tests, no database needed
 ```
 
 The fixtures in `tests/data/` are the ten `.dlog` files of the reference `rlderiv` scan,
