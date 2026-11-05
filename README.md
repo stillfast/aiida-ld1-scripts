@@ -134,12 +134,23 @@ verdi group list
 ## Tests
 
 ```bash
-pytest        # 12 tests, no database needed
+pytest        # 16 tests, no database needed
 ```
 
 The fixtures in `tests/data/` are the ten `.dlog` files of the reference `rlderiv` scan,
 so the analysis is checked against the numbers of the original report rather than against
 itself.
+
+CI runs these tests only: the analysis layer needs nothing but numpy. The submission
+layer (`2-submit/`) needs an AiiDA profile and a real `ld1.x`, so it is verified by
+running the pipeline — which is how every number in this README was produced.
+
+## The archive
+
+`data/aiida-ld1-6p25.aiida` (2.1 MB) holds 14 group links, the 7 calculations with their
+inputs and outputs, and **five generated UPFs** (one per generation run: the main one and
+the five `rlderiv` points share four distinct files, the configts run writes none), plus
+the retrieved `ld1.x` output including `ld1.dlog`, `ld1.test` and the wavefunctions.
 
 ## License
 
