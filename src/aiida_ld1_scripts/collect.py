@@ -144,40 +144,9 @@ def collect(group_label: str = recipe_module.DEFAULT_GROUP,
             })
         scanned.sort(key=lambda entry: entry['rlderiv'])
         summary['rlderiv_scan'] = scanned
-        summary['best_rlderiv'] = _select(scanned)
+        summary['best_rlderiv'] = analysis.select_rlderiv(scanned)
 
     return summary
-
-
-def _select(scanned: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Pick an ``rlderiv`` in **two tiers**: pole coincidence first, median second.
-
-    Ranking by the pooled median alone was wrong, and visibly so: rlderiv = 8 has the
-    smallest median (1.38e-4) while its own pole check *fails* -- exactly the criterion
-    the report calls the ghost criterion.  A pseudopotential that adds or moves a bound
-    state is not made acceptable by a small median, so the pole verdict gates the choice.
-
-    ``best_by_median`` is kept in the summary so the difference between the two rules is
-    visible instead of silently resolved.
-    """
-    if not scanned:
-        return None
-    by_median = min(scanned, key=lambda entry: entry['pooled_median'])
-    passing = [entry for entry in scanned if entry['poles_all_coincide']]
-    chosen = min(passing, key=lambda entry: entry['pooled_median']) if passing else None
-    return {
-        'rlderiv': chosen['rlderiv'] if chosen else None,
-        'pooled_median': chosen['pooled_median'] if chosen else None,
-        'pk': chosen['pk'] if chosen else None,
-        'rule': 'poles must coincide, then smallest pooled median',
-        'pole_gated': bool(passing),
-        'passing': [entry['rlderiv'] for entry in passing],
-        'best_by_median': {
-            'rlderiv': by_median['rlderiv'],
-            'pooled_median': by_median['pooled_median'],
-            'pole_gated': by_median['poles_all_coincide'],
-        },
-    }
 
 
 # ------------------------------------------------------------------- writing
