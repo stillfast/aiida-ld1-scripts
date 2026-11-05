@@ -281,10 +281,9 @@ def test_the_shipped_configuration_is_what_we_think_it_is(monkeypatch, tmp_path)
     assert (logx.get_xscale(), logx.get_yscale()) == ('log', 'linear')
     assert logx.get_xlim() == pytest.approx((0.01, 100.0))
     assert any(line.get_linestyle() == '--' for line in logx.get_lines())
-    # the repository diagnostic of the log derivative is on a logarithmic |L|
+    # the log derivative is linear, exactly like the manuscript figure
     derivative = captured['fig_logderiv'].axes[0]
-    assert derivative.get_yscale() == 'log'
-    assert derivative.get_ylabel().startswith('$|L_l(E)|$')
+    assert derivative.get_yscale() == 'linear'
     assert derivative.get_xscale() == 'linear'
     # and the projector figure is there, six curves in one panel
     projectors = captured['fig_projectors'].axes[0]
@@ -332,3 +331,18 @@ def test_the_manuscript_log_derivative_stays_linear(monkeypatch, tmp_path):
                                        rcuts={'6S': 1.5, '5F': 1.3},
                                        formats=('png',))
     assert captured['fig3_3_logderiv'].axes[0].get_yscale() == 'linear'
+
+
+def test_the_log_ordinate_option_still_works(captured):
+    """``log_ordinate=True`` keeps working even though nothing ships with it.
+
+    A signed L cannot be logarithmic, so this mode plots |L|; it is kept as an option (it
+    was asked for once) rather than deleted, and exercised here so it cannot rot.
+    """
+    render, _plt = captured
+    figure, _renderer, _Text = render('figure_logderiv', window=(-3.0, 3.0),
+                                      threshold=20.0, log_ordinate=True)
+    axes = figure.axes[0]
+    assert axes.get_yscale() == 'log'
+    assert axes.get_ylabel().startswith('$|L_l(E)|$')
+    assert axes.get_xscale() == 'linear'

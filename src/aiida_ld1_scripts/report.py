@@ -320,12 +320,10 @@ def make_figures(summary: Dict[str, Any], directory: str | Path,
             (figure_radial, 'fig_radial_logx',
              {'rcuts': rcuts, 'xscale': 'log', 'xlim': (1e-2, 1e2),
               'pseudo_line': True}),
-            # the repository diagnostic uses a logarithmic |L|; the manuscript figure that
-            # export_paper_figures() writes stays linear, as in the paper
+            # linear, like the manuscript figure: a signed L is what one wants to read
             (figure_logderiv, 'fig_logderiv',
              {'window': summary['criteria']['window'],
-              'threshold': summary['criteria']['pole_threshold'],
-              'log_ordinate': True}),
+              'threshold': summary['criteria']['pole_threshold']}),
             (figure_projectors, 'fig_projectors', {})):
         try:
             path = function(plt, directory, out_dir / base, formats=('png',), **extra)
@@ -527,9 +525,8 @@ def write_report(summary: Dict[str, Any], out_dir: Optional[str | Path] = None) 
               'states (4F, 5D) have no pseudo-orbital and are not drawn.', '',
               '![log derivatives](fig_logderiv.png)', '',
               'All-electron curves solid, pseudo curves dotted, one colour per angular '
-              'momentum channel; `|L|` on a logarithmic axis, so a pole is an upward spike '
-              'and a zero a downward one. Pole correspondence is in the table above, not '
-              'marked on the figure.', '',
+              'momentum channel. Pole correspondence is in the table above, not marked on '
+              'the figure.', '',
               '![projectors](fig_projectors.png)', '',
               'The six radial projector functions `beta(r)`, coloured by angular momentum '
               '(the two channels with two projectors, `l = 0` and `l = 1`, use a solid and '

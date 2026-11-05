@@ -180,12 +180,12 @@ previous files are kept as `*.bak`):
 | titles | **none** — the axes are labelled and the manuscript supplies the caption |
 | extras | none: no inset, no pole markers, no annotations on the curves |
 
-The repository carries two **diagnostic** variants that differ from the manuscript figures
-on purpose (the paper's own convention is kept for `fig3_*`):
+`fig_logderiv.png` is the same linear plot as the manuscript `fig3_3_logderiv` (a
+`log_ordinate=True` option exists for a `log |L|` variant — a signed `L` cannot be
+logarithmic — but nothing ships with it). Two other files are repository-only:
 
-| file | difference |
+| file | content |
 |---|---|
-| `fig_logderiv.png` | ordinate is `log |L|` (a signed `L` cannot be logarithmic); the manuscript `fig3_3_logderiv` stays linear |
 | `fig_projectors.png` | the six `beta(r)`, not part of `fig3_1/fig3_3` |
 | `fig_radial_logx.png` | logarithmic abscissa `1e-2 … 1e2 bohr`, pseudo curve dashed *and* open symbols, linear ordinate |
 | units | **bohr** (not Å as in the paper: this recipe's cards and `ld1.test` are in bohr) |
