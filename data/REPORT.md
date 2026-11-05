@@ -50,7 +50,14 @@ Worst tail mismatch: **9.44e-04**.
 
 ## Logarithmic derivatives and poles
 
-`median |dL|` is the ranking statistic: no point is dropped, but the median is robust to the few energies at a pole where both curves diverge (`max |dL|` is dominated by them, so it cannot compare two points). The pole columns are the ghost criterion: the pseudopotential must have one pole per all-electron bound state, at the same energy.
+No point is dropped from `median |dL|`; the median is robust to the few energies at a pole where both curves diverge (`max |dL|` is dominated by them and cannot compare two points).
+
+Two caveats on the pole columns, both measured rather than assumed:
+
+* the poles of `L(E)` at radius `r_c` are the **box** spectrum of that radius (`u(r_c, E) = 0`), not properties of the atom -- they move with `r_c` by construction, so pole *counts* are only comparable at one radius;
+* whether a divergence is detected at all depends on its residue: a pole whose `|L|` peak falls between two grid points stays under the `|L| > 20` threshold. Measured on the same all-electron atom, the detected `l=0` pole count is **1 at rlderiv = 4 and 2 at rlderiv = 5**.
+
+So a pole verdict is meaningful **within one radius** (AE and PS are then solved in the same box) and not across radii.
 
 | channel | median |dL| | max |dL| | poles AE / PS | coincide |
 |---|---|---|---|---|
@@ -73,21 +80,28 @@ Poles coincide in every channel: **yes**.
 | 4 | 5f3 6s2 6p6 6d2 7s1 | +0.145115 | +0.145599 | -0.5 |
 | 5 | 5f3 6s2 6p6 6d2 7s0 | +0.604081 | +0.605156 | -1.1 |
 
-Worst |Delta E| = **1.1 mRy** (the ACWF-style threshold for a usable pseudopotential is 1/3 meV per atom = 0.333 mRy; treat this as a screening scale, not a pass/fail).
+Worst |Delta E| = **1.07 mRy = 14.6 meV**.
 
-## The rlderiv scan
+This is an **atomic** configuration energy difference. It is *not* the ACWF `delta`, which is defined on a solid's energy-volume curve in meV/atom, so the two cannot be compared directly -- and the unit conversion matters: 1 mRy = 13.6 meV, so 1/3 meV = 0.0245 mRy (not 0.333 mRy, which would be 4.5 meV). As an external scale, chemical accuracy is about 43 meV (1 kcal/mol), i.e. this pseudopotential is at roughly a third of it on the worst configuration.
 
-One full generation per value; the criterion is the median `|dL|` pooled over the channels. `l >= 3` is drawn but not used as a criterion (the Bessel-box column of ld1.x is unreliable there).
+## The rlderiv scan: a diagnostic, not a selection
 
-| rlderiv | l=0 median | l=1 median | l=2 median | l=3 median | pooled median | poles coincide |
-|---|---|---|---|---|---|---|
-| 4 | 8.854e-04 | 1.484e-04 | 2.797e-03 | 3.871e-03 | 8.775e-04 | NO |
-| 5 | 2.327e-03 | 8.121e-05 | 2.454e-03 | 1.093e-03 | 1.031e-03 | yes |
-| 6 | 6.382e-04 | 1.065e-04 | 5.529e-04 | 4.119e-04 | 5.648e-04 | NO |
-| 7 | 2.847e-04 | 2.856e-04 | 2.043e-04 | 1.784e-04 | 2.359e-04 | yes |
-| 8 **←** | 1.667e-04 | 1.407e-04 | 1.132e-04 | 7.642e-05 | 1.376e-04 | NO |
+One full generation per value. **The pooled median cannot rank these points**, and it is not because the pseudopotentials are equally good: at a larger radius `L(E)` is dominated by the decaying tail (`u'/u -> -kappa + 1/r`), where the all-electron and pseudo curves agree by construction. The metric therefore measures mostly *how far outside the core it looks* -- measured at `E = -1 Ry`, `|L_AE - L_PS|` is 5.9e-05 at rlderiv = 4 and 3.6e-07 at rlderiv = 8.
 
-**Best: rlderiv = 8 bohr** (pooled median 1.376e-04, pk 561496).
+The pole verdict is the hard criterion (a pseudopotential that adds or moves a bound state is not made acceptable by a small median), so it gates the choice. `bound median` repeats the median on `E < 0` only, where the tail cannot do the work; it is shown as a sanity check, not as a second criterion.
+
+| rlderiv | l=0 median | l=1 median | l=2 median | l=3 median | pooled median | bound median | poles coincide |
+|---|---|---|---|---|---|---|---|
+| 4 | 8.854e-04 | 1.484e-04 | 2.797e-03 | 3.871e-03 | 8.775e-04 | 8.27e-05 | **NO** |
+| 5 | 2.327e-03 | 8.121e-05 | 2.454e-03 | 1.093e-03 | 1.031e-03 | 1.20e-05 | yes |
+| 6 | 6.382e-04 | 1.065e-04 | 5.529e-04 | 4.119e-04 | 5.648e-04 | 4.92e-06 | **NO** |
+| 7 **←** | 2.847e-04 | 2.856e-04 | 2.043e-04 | 1.784e-04 | 2.359e-04 | 2.54e-06 | yes |
+| 8 | 1.667e-04 | 1.407e-04 | 1.132e-04 | 7.642e-05 | 1.376e-04 | 8.11e-06 | **NO** |
+
+**Pole-gated pick: rlderiv = 7 bohr** (pooled median 2.359e-04, pk 561489); the points passing the pole test are 5, 7.
+The smallest median is rlderiv = 8 (1.376e-04), but its pole check **fails**, so it is not admissible -- ranking by the median alone is what an earlier version of this report did.
+
+The production pseudopotential uses the recipe value (`rlderiv = 5.0`); this scan does not justify changing it.
 
 ## Figures
 

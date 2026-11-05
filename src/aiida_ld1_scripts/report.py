@@ -258,11 +258,21 @@ def write_report(summary: Dict[str, Any], out_dir: Optional[str | Path] = None) 
                          f"{pole_entry.get('n_ae', '-')} / {pole_entry.get('n_ps', '-')}",
                          'yes' if pole_entry.get('coincide') else 'NO'])
         lines += ['## Logarithmic derivatives and poles', '',
-                  '`median |dL|` is the ranking statistic: no point is dropped, but the '
-                  'median is robust to the few energies at a pole where both curves '
-                  'diverge (`max |dL|` is dominated by them, so it cannot compare two '
-                  'points). The pole columns are the ghost criterion: the pseudopotential '
-                  'must have one pole per all-electron bound state, at the same energy.', '']
+                  'No point is dropped from `median |dL|`; the median is robust to the few '
+                  'energies at a pole where both curves diverge (`max |dL|` is dominated by '
+                  'them and cannot compare two points).', '',
+                  'Two caveats on the pole columns, both measured rather than assumed:',
+                  '',
+                  '* the poles of `L(E)` at radius `r_c` are the **box** spectrum of that '
+                  'radius (`u(r_c, E) = 0`), not properties of the atom -- they move with '
+                  '`r_c` by construction, so pole *counts* are only comparable at one '
+                  'radius;',
+                  '* whether a divergence is detected at all depends on its residue: a pole '
+                  'whose `|L|` peak falls between two grid points stays under the `|L| > 20` '
+                  'threshold. Measured on the same all-electron atom, the detected `l=0` '
+                  'pole count is **1 at rlderiv = 4 and 2 at rlderiv = 5**.', '',
+                  'So a pole verdict is meaningful **within one radius** (AE and PS are then '
+                  'solved in the same box) and not across radii.', '']
         lines.append(_markdown_table(['channel', 'median |dL|', 'max |dL|',
                                   'poles AE / PS', 'coincide'], rows))
         lines += ['', f"Poles coincide in every channel: "
@@ -282,16 +292,30 @@ def write_report(summary: Dict[str, Any], out_dir: Optional[str | Path] = None) 
               '-' if row['delta_ps_ry'] is None else f"{row['delta_ps_ry']:+.6f}",
               '-' if row['delta_mry'] is None else f"{row['delta_mry']:+.1f}"]
              for row in rows]))
-        lines += ['', f"Worst |Delta E| = **{generated.get('max_abs_mry'):.1f} mRy** "
-                      f"(the ACWF-style threshold for a usable pseudopotential is 1/3 meV "
-                      f"per atom = 0.333 mRy; treat this as a screening scale, not a pass/fail).",
-                  '']
+        worst_mry = generated.get('max_abs_mry') or 0.0
+        lines += ['', f"Worst |Delta E| = **{worst_mry:.2f} mRy = {worst_mry * 13.6057:.1f} meV**.", '',
+                  'This is an **atomic** configuration energy difference. It is *not* the '
+                  'ACWF `delta`, which is defined on a solid\'s energy-volume curve in '
+                  'meV/atom, so the two cannot be compared directly -- and the unit '
+                  'conversion matters: 1 mRy = 13.6 meV, so 1/3 meV = 0.0245 mRy (not '
+                  '0.333 mRy, which would be 4.5 meV). As an external scale, chemical '
+                  'accuracy is about 43 meV (1 kcal/mol), i.e. this pseudopotential is at '
+                  'roughly a third of it on the worst configuration.', '']
 
     if scan:
-        lines += ['## The rlderiv scan', '',
-                  'One full generation per value; the criterion is the median `|dL|` '
-                  'pooled over the channels. `l >= 3` is drawn but not used as a '
-                  'criterion (the Bessel-box column of ld1.x is unreliable there).', '']
+        lines += ['## The rlderiv scan: a diagnostic, not a selection', '',
+                  'One full generation per value. **The pooled median cannot rank these '
+                  'points**, and it is not because the pseudopotentials are equally good: at '
+                  'a larger radius `L(E)` is dominated by the decaying tail '
+                  '(`u\'/u -> -kappa + 1/r`), where the all-electron and pseudo curves agree '
+                  'by construction. The metric therefore measures mostly *how far outside '
+                  'the core it looks* -- measured at `E = -1 Ry`, `|L_AE - L_PS|` is '
+                  '5.9e-05 at rlderiv = 4 and 3.6e-07 at rlderiv = 8.', '',
+                  'The pole verdict is the hard criterion (a pseudopotential that adds or '
+                  'moves a bound state is not made acceptable by a small median), so it '
+                  'gates the choice. `bound median` repeats the median on `E < 0` only, '
+                  'where the tail cannot do the work; it is shown as a sanity check, not as '
+                  'a second criterion.', '']
         channels = sorted({channel for entry in scan for channel in entry.get('per_channel', {})})
         rows = []
         for entry in scan:
@@ -300,16 +324,31 @@ def write_report(summary: Dict[str, Any], out_dir: Optional[str | Path] = None) 
                 value = entry['per_channel'].get(channel, {}).get('median')
                 cells.append('-' if value is None else f'{value:.3e}')
             cells.append(f"{entry['pooled_median']:.3e}")
-            cells.append('yes' if entry['poles_all_coincide'] else 'NO')
+            bound = entry.get('bound_median')
+            cells.append('-' if bound is None else f"{bound:.2e}")
+            cells.append('yes' if entry['poles_all_coincide'] else '**NO**')
             if best and entry['rlderiv'] == best['rlderiv']:
                 cells[0] += ' **←**'
             rows.append(cells)
         lines.append(_markdown_table(
             ['rlderiv'] + [f'{channel} median' for channel in channels]
-            + ['pooled median', 'poles coincide'], rows))
+            + ['pooled median', 'bound median', 'poles coincide'], rows))
         if best:
-            lines += ['', f"**Best: rlderiv = {best['rlderiv']:g} bohr** "
-                          f"(pooled median {best['pooled_median']:.3e}, pk {best['pk']})."]
+            median_pick = best.get('best_by_median') or {}
+            if best.get('rlderiv') is not None:
+                lines += ['', f"**Pole-gated pick: rlderiv = {best['rlderiv']:g} bohr** "
+                              f"(pooled median {best['pooled_median']:.3e}, pk {best['pk']}); "
+                              f"the points passing the pole test are "
+                              f"{', '.join(f'{value:g}' for value in best.get('passing', []))}."]
+            else:
+                lines += ['', 'No scanned radius passes the pole test.']
+            if median_pick and median_pick.get('pole_gated') is False:
+                lines += [f"The smallest median is rlderiv = {median_pick['rlderiv']:g} "
+                          f"({median_pick['pooled_median']:.3e}), but its pole check "
+                          f"**fails**, so it is not admissible -- ranking by the median alone "
+                          f"is what an earlier version of this report did."]
+            lines += ['', 'The production pseudopotential uses the recipe value '
+                          '(`rlderiv = 5.0`); this scan does not justify changing it.']
         lines.append('')
 
     lines += ['## Figures', '',

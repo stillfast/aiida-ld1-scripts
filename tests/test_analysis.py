@@ -188,3 +188,33 @@ def test_wavefunction_agreement_skips_states_missing_from_the_pseudo_file(tmp_pa
                                                tmp_path / 'ld1ps.wfc',
                                                cutoffs={'6S': 1.5})
     assert set(measured) == {'6S'}
+
+
+# ---------------------------------------------------------------- selection rule
+
+def test_pole_coincidence_must_be_checked_within_one_radius():
+    """The pole count of the *same* all-electron atom changes with rlderiv.
+
+    The poles of L(E) at radius r_c are the box spectrum of that radius, so a pole count
+    is not stationary in r_c.  This is why the scan cannot compare "how many poles
+    coincide" across radii, and why the report says so.
+    """
+    counts = {}
+    for value in (4.0, 5.0, 6.0, 7.0, 8.0):
+        ae = analysis.read_dlog(directory(value) / 'ld1.dlog')
+        mask = (ae['energy'] >= -3.0) & (ae['energy'] <= 3.0)
+        counts[value] = len(analysis.find_poles(ae['energy'][mask], ae['l=0'][mask],
+                                                threshold=20.0))
+    # 1, 2, 1, 2, 2 -- the all-electron atom is identical in all five runs
+    assert counts == {4.0: 1, 5.0: 2, 6.0: 1, 7.0: 2, 8.0: 2}, counts
+
+
+def test_the_median_improves_with_radius_because_the_tail_is_compared():
+    """|L_AE - L_PS| at a fixed energy shrinks as the probe moves into the tail."""
+    values = {}
+    for value in (4.0, 8.0):
+        ae = analysis.read_dlog(directory(value) / 'ld1.dlog')
+        ps = analysis.read_dlog(directory(value) / 'ld1ps.dlog')
+        index = int(np.argmin(np.abs(ae['energy'] - (-1.0))))
+        values[value] = abs(ae['l=0'][index] - ps['l=0'][index])
+    assert values[8.0] < 0.01 * values[4.0]

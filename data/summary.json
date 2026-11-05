@@ -71,7 +71,7 @@
       "z_valence": "14.000000000000000"
     },
     "log_derivatives": {
-      "directory": "/tmp/ld1-collect-l0be7xj4/generation",
+      "directory": "/tmp/ld1-collect-7ov2cb4n/generation",
       "per_channel": {
         "l=0": {
           "median": 0.0023265801170000433,
@@ -266,6 +266,7 @@
         }
       },
       "pooled_median": 0.0008775172220000793,
+      "bound_median": 8.26969740000405e-05,
       "poles_all_coincide": false,
       "poles": {
         "l=0": {
@@ -340,6 +341,7 @@
         }
       },
       "pooled_median": 0.0010307375709999178,
+      "bound_median": 1.2006686000043398e-05,
       "poles_all_coincide": true,
       "poles": {
         "l=0": {
@@ -410,6 +412,7 @@
         }
       },
       "pooled_median": 0.0005648292054999948,
+      "bound_median": 4.922971500009865e-06,
       "poles_all_coincide": false,
       "poles": {
         "l=0": {
@@ -488,6 +491,7 @@
         }
       },
       "pooled_median": 0.0002358600364999741,
+      "bound_median": 2.544084499955801e-06,
       "poles_all_coincide": true,
       "poles": {
         "l=0": {
@@ -558,6 +562,7 @@
         }
       },
       "pooled_median": 0.0001375832480000061,
+      "bound_median": 8.114893999933148e-06,
       "poles_all_coincide": false,
       "poles": {
         "l=0": {
@@ -604,8 +609,19 @@
     }
   ],
   "best_rlderiv": {
-    "rlderiv": 8.0,
-    "pooled_median": 0.0001375832480000061,
-    "pk": 561496
+    "rlderiv": 7.0,
+    "pooled_median": 0.0002358600364999741,
+    "pk": 561489,
+    "rule": "poles must coincide, then smallest pooled median",
+    "pole_gated": true,
+    "passing": [
+      5.0,
+      7.0
+    ],
+    "best_by_median": {
+      "rlderiv": 8.0,
+      "pooled_median": 0.0001375832480000061,
+      "pole_gated": false
+    }
   }
 }

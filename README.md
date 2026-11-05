@@ -26,14 +26,15 @@ scalar-relativistic, norm-conserving, PBE, Troullier–Martins, with a sixth (un
 | logarithmic derivatives, median \|ΔL\| | 1.03 × 10⁻³ |
 | poles of AE and PS | coincide in every channel |
 | transferability, worst \|ΔE\| over 5 configurations | **1.08 mRy** |
-| best `rlderiv` | **8.0 bohr** (pooled median 1.38 × 10⁻⁴, the best of 5) |
+| `rlderiv` | diagnostic only — the pole-gated pick is **7 bohr**, the production value stays 5 (see below) |
 
 The full report is [data/REPORT.md](data/REPORT.md), generated from the AiiDA group.
 
 **Does it reproduce the earlier work?** Yes, number for number:
 
 * the five `rlderiv` rows (20 per-channel medians and 5 pooled medians) match the old
-  `report.md` to `1e-4` relative — `tests/test_analysis.py` asserts this;
+  `report.md` to `1e-4` relative — `tests/test_analysis.py` asserts this. Note that this
+  reproduces the *numbers*, not the old conclusion: see "what the scan cannot decide";
 * the pole verdicts match (`l=0`, `l=1` coincide, `l=2`, `l=3` are displaced by more than
   the 0.04 Ry tolerance at `rlderiv = 8`);
 * Etotps reproduces to the last printed digit (−181.732842 vs −181.732843), and the
@@ -115,21 +116,52 @@ verdi group list
   configuration as the reference: the error the pseudopotential makes in the energy
   *difference* between two configurations, which is the quantity that matters. The sign
   is the one `ld1.x` prints in its own `Delta E=` column. A pseudopotential with a large
-  absolute-energy error but small ΔE is fine for energy differences (the ACWF screening
-  scale is 1/3 meV/atom = 0.333 mRy).
+  absolute-energy error but small ΔE is fine for energy differences. **This is an atomic
+  quantity and is not the ACWF `delta`**, which is defined on a solid's energy–volume
+  curve in meV/atom. The conversion matters: `1 mRy = 13.6 meV`, so our worst value
+  (1.07 mRy = **14.6 meV**) is about a third of chemical accuracy (~43 meV), while
+  `1/3 meV` would be 0.0245 mRy, not 0.333 mRy.
 * **median |ΔL|**: median of `|L_PS − L_AE|` at the `rlderiv` radius over the energy
-  window, **pooled over all channels** for ranking. No point is dropped: near a pole both
-  curves diverge, which is why the *median* is the criterion and the *mean* is not.
+  window, pooled over all channels. No point is dropped: near a pole both curves diverge,
+  which is why the *median* is used and the *mean* is not. It is **not** used to rank
+  `rlderiv` — see below.
 * **poles**: sign change of `L(E)` with `|L| > 20`, position from the divergence model
   `L ≈ c/(E−E_P)`. AE and PS must have the same number, each within
   `pole_tolerance + grid step` (0.04 Ry). This is the ghost criterion — not the Bessel
   box test, whose `l ≥ 3` column is an artefact of the diagonalisation (see the
-  `aiida-ld1` README).
+  `aiida-ld1` README). It is only meaningful **within one radius**: the poles of `L` at
+  `r_c` are the *box* spectrum of that radius, so they move with `r_c` by construction.
 * **phase matching**: `u(r)` has no defined sign, and `ld1.wfc` (all-electron run) need
   not share the phase of the pseudo orbital, so `analysis.align_phase` flips it when
   `|AE + PS| < |AE − PS|`. Note also that `ld1ps.wfc` contains the pseudo orbitals in
   its **first** half and the phase-aligned all-electron orbitals in its second — building
   a `{label: column}` dict over that file silently keeps the *all-electron* copy.
+
+## What the `rlderiv` scan cannot decide
+
+The scan is a **diagnostic, not a selection**, for two measured reasons:
+
+1. **The pooled median rewards looking outside the core.** At larger `r_c`, `L(E)` is
+   dominated by the decaying tail (`u'/u → −κ + 1/r`), where all-electron and pseudo
+   curves agree by construction. At `E = −1 Ry`, `|L_AE − L_PS|` is 5.9 × 10⁻⁵ at
+   `rlderiv = 4` and 3.6 × 10⁻⁷ at `rlderiv = 8` — so "the median falls with `r`" says
+   nothing about the pseudopotential.
+2. **The pole criterion is not stationary in `r`.** The detected `l = 0` pole count of the
+   *same* all-electron atom is 1 at `rlderiv = 4` and 2 at `rlderiv = 5`: the poles are the
+   box spectrum of radius `r_c`, and whether a divergence survives the `|L| > 20` test
+   depends on its residue. Comparing "how many poles coincide" across radii compares
+   different tests.
+
+So the pole verdict gates the choice **within** each point, and no point is allowed to win
+on the median alone. That matters: the smallest median belongs to `rlderiv = 8`
+(1.38 × 10⁻⁴) but its pole check **fails** (`l = 2` displaced by 0.043 Ry, `l = 3` by
+0.047 Ry against a 0.04 Ry tolerance), while the points that pass the pole test are 5 and
+7. The gated pick is therefore **7** (median 2.36 × 10⁻⁴), which the bound-region median
+(`E < 0`, where the tail cannot help) independently ranks best as well (2.54 × 10⁻⁶).
+
+**The production pseudopotential stays at `rlderiv = 5`**: the scan does not justify
+changing it, and the choice of `r` remains a diagnostic setting. In a paper the scan
+belongs in the SI as a 5-row table — plotting it hides the column that decides.
 
 ## Tests
 
