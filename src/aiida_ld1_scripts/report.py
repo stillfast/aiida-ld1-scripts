@@ -68,15 +68,27 @@ def _save(figure, out_base: Path, plt, formats: Sequence[str]) -> Path:
     return out_base
 
 
-def _sample(grid, count: int = 34):
-    """Indices at which to draw the open symbols (a curve, not a thick band)."""
+def _sample(grid, count: int = 34, *, logarithmic: bool = False):
+    """Indices at which to draw the open symbols (a curve, not a thick band).
+
+    With a logarithmic x axis the symbols are sampled logarithmically too, otherwise
+    every one of them crowds into the left-hand decade and the outer region is left bare.
+    """
     import numpy as np
 
-    step = max(1, len(grid) // count)
-    return np.arange(0, len(grid), step)
+    grid = np.asarray(grid)
+    if not logarithmic:
+        step = max(1, len(grid) // count)
+        return np.arange(0, len(grid), step)
+    positive = grid > 0
+    low, high = np.log10(grid[positive].min()), np.log10(grid[positive].max())
+    targets = np.logspace(low, high, count)
+    indices = np.unique(np.searchsorted(grid, targets).clip(0, len(grid) - 1))
+    return indices[grid[indices] > 0]
 
 
 def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
+                  xscale: str = 'linear',
                   formats: Sequence[str] = ('png',)) -> Optional[Path]:
     """AE vs pseudo radial functions, in the style of Torres & Kaloni Fig. 2 (left).
 
@@ -87,6 +99,10 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
 
     Only the pseudized channels are drawn; the all-electron run also writes core states
     (4F, 5D) that the pseudopotential has no orbital for.
+
+    ``xscale='log'`` is a diagnostic variant: it spreads out the region where the two
+    orbitals are *meant* to differ (``r < rcut``), which a linear axis compresses into a
+    few pixels.
     """
     directory = Path(directory)
     ae_file, ps_file = directory / 'ld1.wfc', directory / 'ld1ps.wfc'
@@ -96,7 +112,11 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
     ps_labels, _, ps_values, _aligned = analysis.read_wfc_halves(ps_file)
 
     figure, axis = plt.subplots(figsize=(6.4, 4.2))
-    indices = _sample(grid)
+    logarithmic = str(xscale).lower() == 'log'
+    # only sample where the symbols can be seen: the ld1 grid runs out to ~100 bohr
+    high = min(8.0, float(grid[-1]))
+    visible = grid <= high
+    indices = _sample(grid[visible], logarithmic=logarithmic)
     rcuts = rcuts or {}
 
     for position, label in enumerate(ps_labels):
@@ -110,14 +130,19 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
         cutoff = rcuts.get(label)
         name = label if cutoff is None else f'{label} (r$_c$ = {cutoff:.2f} bohr)'
         axis.plot(grid, all_electron, '-', color=colour, lw=1.2, label=name)
-        axis.plot(grid[indices], pseudo[indices], 'o', mfc='none', mec=colour,
-                  ms=3.4, mew=0.8)
+        axis.plot(grid[visible][indices], pseudo[visible][indices], 'o',
+                  mfc='none', mec=colour, ms=3.4, mew=0.8)
         if cutoff is not None:
             axis.axvline(cutoff, color=colour, ls=':', lw=0.8, alpha=0.75)
 
     axis.set_xlabel('r (bohr)')
     axis.set_ylabel('u(r) = r·R(r)  (arb. units)')
-    axis.set_xlim(0.0, min(8.0, float(grid[-1])))
+    if logarithmic:
+        positive = grid[grid > 0]
+        axis.set_xscale('log')
+        axis.set_xlim(max(float(positive.min()), 1e-4), high)
+    else:
+        axis.set_xlim(0.0, high)
     axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
     axis.legend(loc='upper right', frameon=False)
     return _save(figure, Path(out_base), plt, formats)
@@ -206,6 +231,7 @@ def make_figures(summary: Dict[str, Any], directory: str | Path,
     written: List[Path] = []
     for function, base, extra in (
             (figure_radial, 'fig_radial', {'rcuts': rcuts}),
+            (figure_radial, 'fig_radial_logx', {'rcuts': rcuts, 'xscale': 'log'}),
             (figure_logderiv, 'fig_logderiv',
              {'window': summary['criteria']['window'],
               'threshold': summary['criteria']['pole_threshold']})):

@@ -202,3 +202,19 @@ def test_save_uses_the_tight_bounding_box(tmp_path, monkeypatch):
     report_module._save(figure, tmp_path / 'f', plt, ('png',))
     assert seen.get('bbox_inches') == 'tight'
     assert seen.get('dpi', 0) >= 300
+
+
+def test_the_log_x_variant_only_samples_the_visible_range(captured):
+    """The diagnostic log-x radial figure, and no symbols outside the axes."""
+    render, _plt = captured
+    figure, _renderer, _Text = render('figure_radial', rcuts={'6S': 1.5, '5F': 1.3},
+                                      xscale='log')
+    axes = figure.axes[0]
+    assert axes.get_xscale() == 'log'
+    low, high = axes.get_xlim()
+    assert low > 0.0 and high <= 8.0
+    symbols = [line for line in axes.get_lines() if line.get_marker() == 'o']
+    assert len(symbols) == 2
+    for line in symbols:
+        xdata = line.get_xdata()
+        assert xdata.min() >= low and xdata.max() <= high
