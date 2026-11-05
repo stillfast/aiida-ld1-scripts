@@ -63,4 +63,5 @@ def analysis_settings(recipe: Dict[str, Any]) -> Dict[str, Any]:
         'pole_threshold': float(scan.get('pole_threshold', 20.0)),
         'pole_tolerance': float(scan.get('pole_tolerance', 0.04)),
         'grid_step': float(config.get('deld', 0.02)),
+        'production_rlderiv': float(config.get('rlderiv', 0.0)),
     }

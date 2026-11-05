@@ -9,7 +9,8 @@
     ],
     "pole_threshold": 20.0,
     "pole_tolerance": 0.04,
-    "grid_step": 0.02
+    "grid_step": 0.02,
+    "production_rlderiv": 5.0
   },
   "generation": {
     "pk": 561461,
@@ -71,7 +72,7 @@
       "z_valence": "14.000000000000000"
     },
     "log_derivatives": {
-      "directory": "/tmp/ld1-collect-7ov2cb4n/generation",
+      "directory": "/tmp/ld1-collect-4izj91a2/generation",
       "per_channel": {
         "l=0": {
           "median": 0.0023265801170000433,

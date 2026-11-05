@@ -113,30 +113,53 @@ def figure_logderiv(plt, node, out: Path, *, window=(-3.0, 3.0),
 
 
 def figure_rlderiv(plt, summary: Dict[str, Any], out: Path) -> Optional[Path]:
-    """Median ``|dL|`` against ``rlderiv``, one line per channel plus the pooled one."""
+    """Pooled median ``|dL|`` against ``rlderiv``, with the pole verdict marked.
+
+    Filled marker = the pole test passes at that radius, open marker = it fails.  The
+    verdict, not the median, is what decides: see the README ("what the scan cannot
+    decide").  The production value is drawn so nobody has to guess which radius was used.
+    """
     scan = summary.get('rlderiv_scan') or []
     if not scan:
         return None
     import numpy as np
 
-    channels = sorted({channel for entry in scan for channel in entry.get('per_channel', {})})
+    production = summary.get('criteria', {}).get('production_rlderiv')
     figure, axis = plt.subplots(figsize=(6.4, 4.0))
-    for channel, colour in zip(channels, COLOURS):
-        values = [entry['per_channel'].get(channel, {}).get('median', np.nan) for entry in scan]
-        axis.semilogy([entry['rlderiv'] for entry in scan], values, 'o-',
-                      color=colour, ms=3, lw=1.0, label=channel)
-    axis.semilogy([entry['rlderiv'] for entry in scan],
-                  [entry['pooled_median'] for entry in scan], 'k--o', ms=4,
-                  label='pooled (criterion)')
-    best = summary.get('best_rlderiv')
-    if best:
-        axis.axvline(best['rlderiv'], color='0.6', ls=':', lw=0.8)
-        axis.annotate(f"best = {best['rlderiv']:g}", xy=(best['rlderiv'], best['pooled_median']),
-                      xytext=(4, 10), textcoords='offset points', fontsize=8)
+    passed = [entry for entry in scan if entry['poles_all_coincide']]
+    failed = [entry for entry in scan if not entry['poles_all_coincide']]
+    axis.semilogy([entry['rlderiv'] for entry in passed],
+                  [entry['pooled_median'] for entry in passed], 'o-',
+                  color='#0072B2', ms=6, lw=1.2, label='poles coincide (admissible)')
+    axis.semilogy([entry['rlderiv'] for entry in failed],
+                  [entry['pooled_median'] for entry in failed], 'o',
+                  mfc='none', mec='#D55E00', ms=7, mew=1.4,
+                  label='poles do NOT coincide (rejected)')
+    best = summary.get('best_rlderiv') or {}
+    if best.get('rlderiv') is not None:
+        axis.axvline(best['rlderiv'], color='#0072B2', ls=':', lw=1.0)
+        axis.annotate(f"pole-gated pick = {best['rlderiv']:g}",
+                      xy=(best['rlderiv'], best['pooled_median']),
+                      xytext=(6, -14), textcoords='offset points',
+                      fontsize=8, color='#0072B2')
+    if production is not None:
+        axis.axvline(production, color='0.5', ls='--', lw=1.0)
+        axis.annotate(f'production = {production:g}', xy=(production, 0.0),
+                      xycoords=('data', 'axes fraction'), xytext=(4, 6),
+                      textcoords='offset points', fontsize=8, color='0.35')
+    smallest = min(scan, key=lambda entry: entry['pooled_median'])
+    if not smallest['poles_all_coincide']:
+        axis.annotate('smallest median, but rejected',
+                      xy=(smallest['rlderiv'], smallest['pooled_median']),
+                      xytext=(6, 8), textcoords='offset points', fontsize=8,
+                      color='#D55E00')
     axis.set_xlabel('rlderiv (bohr)')
-    axis.set_ylabel('median |ΔL| (all channels pooled = median of the per-channel medians)')
-    axis.set_title('logarithmic-derivative agreement against the rlderiv reference radius')
-    axis.legend(fontsize=7, frameon=False)
+    axis.set_ylabel('median |ΔL| (pooled over channels)')
+    axis.set_title('log-derivative agreement vs the rlderiv reference radius\n'
+                   'the median shrinks with the radius by construction; only the '
+                   'pole verdict decides')
+    axis.grid(True, which='both', color='0.9', lw=0.6)
+    axis.legend(fontsize=8, frameon=False, loc='upper right')
     figure.tight_layout()
     figure.savefig(out, dpi=150)
     plt.close(figure)
