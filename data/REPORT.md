@@ -107,7 +107,9 @@ The production pseudopotential uses the recipe value (`rlderiv = 5.0`); this sca
 
 ![radial](fig_radial.png)
 
+All-electron orbitals as solid lines, pseudo-orbitals as open symbols; the vertical dotted lines are the pseudization radii. The all-electron core states (4F, 5D) have no pseudo-orbital and are not drawn.
+
 ![log derivatives](fig_logderiv.png)
 
-![rlderiv scan](fig_rlderiv.png)
+All-electron curves solid, pseudo curves dotted, one colour per angular momentum channel. Pole correspondence is in the table above, not marked on the figure.
 

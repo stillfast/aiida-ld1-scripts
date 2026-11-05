@@ -133,25 +133,35 @@ def test_radial_uses_solid_lines_and_open_symbols(captured):
     assert outside_tight_bbox(figure, renderer, Text) == []
 
 
-def test_radial_draws_the_difference_inset(captured):
-    """The |u_AE - u_PS| inset is a child axes in matplotlib >= 3.6."""
+def test_the_figures_carry_no_title(captured):
+    """The figures are captioned by the manuscript, not by their own title."""
+    render, _plt = captured
+    for which, extra in (('figure_radial', {'rcuts': {'6S': 1.5, '5F': 1.3}}),
+                         ('figure_logderiv', {'window': (-3.0, 3.0), 'threshold': 20.0})):
+        figure, _renderer, _Text = render(which, **extra)
+        assert figure.axes[0].get_title() == '', which
+        assert not figure.texts, which          # no figure-level titles either
+
+
+def test_radial_has_no_difference_inset(captured):
+    """The |u_AE - u_PS| inset was removed: the report table carries those numbers."""
     render, _plt = captured
     figure, _renderer, _Text = render('figure_radial', rcuts={'6S': 1.5, '5F': 1.3})
-    children = figure.axes[0].child_axes
-    assert len(children) == 1
-    assert children[0].get_title() == '$|u_{AE} - u_{PS}|$'
+    assert figure.axes[0].child_axes == []
 
 
-def test_logderiv_solid_versus_dotted_and_poles_marked(captured):
-    """Paper Fig. 3: AE solid, PS dotted, and the pole correspondence drawn."""
+def test_logderiv_is_curves_only(captured):
+    """Paper Fig. 3: AE solid, PS dotted, and nothing else -- no pole markers."""
     render, _plt = captured
     figure, renderer, Text = render('figure_logderiv', window=(-3.0, 3.0), threshold=20.0)
     axes = figure.axes[0]
     dotted = [line for line in axes.get_lines() if line.get_linestyle() == ':']
-    triangles = [line for line in axes.get_lines() if line.get_marker() == '^']
     assert len(dotted) == 2                    # one per channel (l=0, l=1)
-    assert len(triangles) >= 1                 # the pseudo pole(s)
-    assert any(line.get_linestyle() == '--' for line in axes.get_lines())  # AE pole
+    vertical = [line for line in axes.get_lines()
+                if len(set(line.get_xdata())) == 1]
+    assert vertical == []                      # no vertical pole lines
+    assert [line for line in axes.get_lines() if line.get_marker() == '^'] == []
+    assert len(axes.texts) == 0                # no pole-energy annotations
     assert outside_tight_bbox(figure, renderer, Text) == []
 
 

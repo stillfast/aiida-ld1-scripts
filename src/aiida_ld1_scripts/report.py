@@ -1,11 +1,14 @@
 """Figures and the markdown report, from ``data/summary.json``.
 
-Three figures, each one a question about the pseudopotential:
+Two figures, both in the style of Torres & Kaloni (2020) and both **without a title** (the
+manuscript captions them):
 
 ``fig_radial.png``     do the pseudo and all-electron radial functions agree?
-``fig_logderiv.png``   do the logarithmic derivatives agree, and do the poles sit on
-                       the same bound-state energies (the ghost criterion)?
-``fig_rlderiv.png``    which ``rlderiv`` reproduces the all-electron data best?
+``fig_logderiv.png``   do the logarithmic derivatives agree?
+
+There is deliberately no plot of the ``rlderiv`` scan: its meaning is not evident from a
+picture, the decisive column is the pole verdict, and that belongs in a table (see the
+README, "what the scan cannot decide").
 
 The ``l >= 3`` channel is drawn but not used to judge anything: for ``l >= 3`` the
 Bessel-box column of ``ld1.x`` is a numerical artefact (it moves ~0.23 Ry with the box
@@ -38,7 +41,8 @@ def _matplotlib():
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    # a paper figure, not a debugging plot
+    # a paper figure, not a debugging plot: no titles anywhere, only axis labels and the
+    # legend carry information
     plt.rcParams.update({'font.size': 9, 'axes.titlesize': 10, 'axes.labelsize': 9.5,
                          'legend.fontsize': 8, 'xtick.labelsize': 8.5,
                          'ytick.labelsize': 8.5})
@@ -48,10 +52,9 @@ def _matplotlib():
 def _save(figure, out_base: Path, plt, formats: Sequence[str]) -> Path:
     """Save ``out_base`` in every requested format; returns the base path.
 
-    ``bbox_inches='tight'`` is what keeps a long ylabel or a two-line title from being
-    cut off.  It is **not sufficient** on its own: matplotlib's tight bounding box does
-    not include the decorations of an inset (child) axes, so the inset's tick labels and
-    title would be cropped.  They are passed as extra artists explicitly.
+    ``bbox_inches='tight'`` is what keeps a long ylabel from being cut off.  It is **not**
+    sufficient on its own: matplotlib's tight bounding box does not include the
+    decorations of an inset (child) axes, so those are passed as extra artists.
     """
     out_base.parent.mkdir(parents=True, exist_ok=True)
     extra = []
@@ -77,17 +80,14 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
                   formats: Sequence[str] = ('png',)) -> Optional[Path]:
     """AE vs pseudo radial functions, in the style of Torres & Kaloni Fig. 2 (left).
 
-    All-electron orbitals are **solid lines**, pseudo-orbitals **open symbols** (not a
-    dashed line: a dashed line hides underneath the solid one exactly where the two must
-    coincide), and each pseudized channel gets a vertical dotted line at its ``rcut``.
+    All-electron orbitals are **solid lines**, pseudo-orbitals **open symbols** (a dashed
+    line would hide underneath the solid one exactly where the two have to coincide), and
+    each pseudized channel gets a vertical dotted line at its ``rcut``.  No title: the axes
+    are labelled and the legend carries the ``rcut`` values.
+
     Only the pseudized channels are drawn; the all-electron run also writes core states
     (4F, 5D) that the pseudopotential has no orbital for.
-
-    ``directory`` must contain ``ld1.wfc`` (all-electron) and ``ld1ps.wfc`` (pseudo +
-    phase-aligned all-electron in its second half).
     """
-    import numpy as np
-
     directory = Path(directory)
     ae_file, ps_file = directory / 'ld1.wfc', directory / 'ld1ps.wfc'
     if not (ae_file.is_file() and ps_file.is_file()):
@@ -95,8 +95,7 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
     ae_labels, grid, ae_values = analysis.read_wfc(ae_file)
     ps_labels, _, ps_values, _aligned = analysis.read_wfc_halves(ps_file)
 
-    figure, axis = plt.subplots(figsize=(7.0, 4.4))
-    inset = axis.inset_axes([0.61, 0.47, 0.36, 0.36])
+    figure, axis = plt.subplots(figsize=(6.4, 4.2))
     indices = _sample(grid)
     rcuts = rcuts or {}
 
@@ -115,29 +114,12 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
                   ms=3.4, mew=0.8)
         if cutoff is not None:
             axis.axvline(cutoff, color=colour, ls=':', lw=0.8, alpha=0.75)
-        difference = np.abs(all_electron - pseudo)
-        inset.semilogy(grid[grid > 1e-3], np.maximum(difference[grid > 1e-3], 1e-30),
-                       '-', color=colour, lw=0.8)
 
     axis.set_xlabel('r (bohr)')
     axis.set_ylabel('u(r) = r·R(r)  (arb. units)')
     axis.set_xlim(0.0, min(8.0, float(grid[-1])))
     axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
-    axis.set_title('U: all-electron radial orbitals (solid) vs pseudo-orbitals '
-                   '(open symbols)\nvertical dotted lines: pseudization radius r$_c$')
-    for handle in axis.get_legend_handles_labels()[0]:
-        handle.set_label(handle.get_label())
-    axis.legend(loc='center right', frameon=False, ncol=1)
-
-    inset.set_title('$|u_{AE} - u_{PS}|$', fontsize=7.5)
-    inset.set_xlabel('r (bohr)', fontsize=7)
-    inset.tick_params(labelsize=6.5)
-    inset.set_xlim(0.0, min(8.0, float(grid[-1])))
-    inset.axhline(1e-3, color='0.6', ls='--', lw=0.6)
-    dropped = [label for label in ae_labels if label not in ps_labels]
-    if dropped:
-        figure.text(0.01, 0.005, 'not drawn (all-electron core states, no pseudo-orbital): '
-                    + ', '.join(dropped), fontsize=6.5, color='0.35', ha='left', va='bottom')
+    axis.legend(loc='upper right', frameon=False)
     return _save(figure, Path(out_base), plt, formats)
 
 
@@ -146,13 +128,13 @@ def figure_logderiv(plt, directory: str | Path, out_base: Path, *,
                     formats: Sequence[str] = ('png',)) -> Optional[Path]:
     """Logarithmic derivatives, in the style of Torres & Kaloni Fig. 3.
 
-    All-electron curves are **solid**, pseudo curves **dotted** (the paper's convention).
-    The ghost criterion is *pole correspondence*, so the poles are not left to the eye:
-    an all-electron pole is a vertical dashed line and the nearest pseudo pole is a
-    triangle on the axis, so "one line, one triangle" is the test.
+    All-electron curves **solid**, pseudo curves **dotted** -- the paper's convention, and
+    nothing else: no title, no vertical pole markers, no annotations.  The pole
+    correspondence is a number in the report table, not something to be measured off the
+    picture.
 
-    The y range is taken from the data (``0.5``–``99.5`` percentile) instead of a fixed
-    ``+-30``: a hard cut made every pole look like a vertical stroke and hid where it is.
+    The y range is taken from the data (``0.5``-``99.5`` percentile) rather than a fixed
+    ``+-30``, which flattened every pole into a vertical stroke.
     """
     import numpy as np
 
@@ -165,34 +147,22 @@ def figure_logderiv(plt, directory: str | Path, out_base: Path, *,
     mask = (energies >= window[0]) & (energies <= window[1])
     channels = [channel for channel in all_electron if channel != 'energy']
 
-    figure, axis = plt.subplots(figsize=(7.0, 4.6))
+    figure, axis = plt.subplots(figsize=(6.4, 4.2))
     for position, channel in enumerate(channels):
         colour = PALETTE[position % len(PALETTE)]
         axis.plot(energies[mask], all_electron[channel][mask], '-', color=colour,
                   lw=1.1, label=f'{channel} AE')
         axis.plot(energies[mask], pseudo[channel][mask], ':', color=colour,
                   lw=1.7, label=f'{channel} PS')
-        for pole in analysis.find_poles(energies[mask], all_electron[channel][mask],
-                                        threshold):
-            axis.axvline(pole, color=colour, ls='--', lw=0.7, alpha=0.65)
-            axis.annotate(f'{pole:+.2f}', xy=(pole, 1.0), xycoords=('data', 'axes fraction'),
-                          xytext=(2, -2), textcoords='offset points', rotation=90,
-                          fontsize=6.5, color=colour, va='top')
-        for pole in analysis.find_poles(energies[mask], pseudo[channel][mask], threshold):
-            axis.plot([pole], [0.0], '^', color=colour, ms=4.5, clip_on=False,
-                      zorder=5)
 
     usable = np.concatenate([np.abs(all_electron[channel][mask]) for channel in channels])
-    low, high = np.percentile(usable, [0.5, 99.5])
-    limit = max(high, 21.0)
+    limit = max(float(np.percentile(usable, 99.5)), 21.0)
     axis.set_ylim(-limit, limit)
     axis.set_xlim(*window)
     axis.set_xlabel('E (Ry)')
     axis.set_ylabel('logarithmic derivative  $L_l(E)$')
-    axis.set_title('U: logarithmic derivative, all-electron (solid) vs pseudo (dotted)\n'
-                   'dashed vertical lines: AE poles, triangles on the axis: PS poles')
     axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
-    axis.legend(loc='upper left', frameon=False, ncol=2, fontsize=7)
+    axis.legend(loc='upper left', frameon=False, ncol=2)
     return _save(figure, Path(out_base), plt, formats)
 
 
@@ -225,63 +195,9 @@ def export_paper_figures(directory: str | Path, paper_dir: str | Path, *,
     return written
 
 
-def figure_rlderiv(plt, summary: Dict[str, Any], out: Path) -> Optional[Path]:
-    """Pooled median ``|dL|`` against ``rlderiv``, with the pole verdict marked.
-
-    Filled marker = the pole test passes at that radius, open marker = it fails.  The
-    verdict, not the median, is what decides: see the README ("what the scan cannot
-    decide").  The production value is drawn so nobody has to guess which radius was used.
-    """
-    scan = summary.get('rlderiv_scan') or []
-    if not scan:
-        return None
-    import numpy as np
-
-    production = summary.get('criteria', {}).get('production_rlderiv')
-    figure, axis = plt.subplots(figsize=(6.4, 4.0))
-    passed = [entry for entry in scan if entry['poles_all_coincide']]
-    failed = [entry for entry in scan if not entry['poles_all_coincide']]
-    axis.semilogy([entry['rlderiv'] for entry in passed],
-                  [entry['pooled_median'] for entry in passed], 'o-',
-                  color='#0072B2', ms=6, lw=1.2, label='poles coincide (admissible)')
-    axis.semilogy([entry['rlderiv'] for entry in failed],
-                  [entry['pooled_median'] for entry in failed], 'o',
-                  mfc='none', mec='#D55E00', ms=7, mew=1.4,
-                  label='poles do NOT coincide (rejected)')
-    best = summary.get('best_rlderiv') or {}
-    if best.get('rlderiv') is not None:
-        axis.axvline(best['rlderiv'], color='#0072B2', ls=':', lw=1.0)
-        axis.annotate(f"pole-gated pick = {best['rlderiv']:g}",
-                      xy=(best['rlderiv'], best['pooled_median']),
-                      xytext=(6, -14), textcoords='offset points',
-                      fontsize=8, color='#0072B2')
-    if production is not None:
-        axis.axvline(production, color='0.5', ls='--', lw=1.0)
-        axis.annotate(f'production = {production:g}', xy=(production, 0.0),
-                      xycoords=('data', 'axes fraction'), xytext=(4, 6),
-                      textcoords='offset points', fontsize=8, color='0.35')
-    smallest = min(scan, key=lambda entry: entry['pooled_median'])
-    if not smallest['poles_all_coincide']:
-        axis.annotate('smallest median, but rejected',
-                      xy=(smallest['rlderiv'], smallest['pooled_median']),
-                      xytext=(6, 8), textcoords='offset points', fontsize=8,
-                      color='#D55E00')
-    axis.set_xlabel('rlderiv (bohr)')
-    axis.set_ylabel('median |ΔL| (pooled over channels)')
-    axis.set_title('log-derivative agreement vs the rlderiv reference radius\n'
-                   'the median shrinks with the radius by construction; only the '
-                   'pole verdict decides')
-    axis.grid(True, which='both', color='0.9', lw=0.6)
-    axis.legend(fontsize=8, frameon=False, loc='upper right')
-    figure.tight_layout()
-    figure.savefig(out, dpi=150)
-    plt.close(figure)
-    return out
-
-
 def make_figures(summary: Dict[str, Any], directory: str | Path,
                  out_dir: Optional[str | Path] = None) -> List[Path]:
-    """The three repository figures into ``out_dir`` (``directory`` = one run's files)."""
+    """The two generation figures into ``out_dir`` (``directory`` = one run's files)."""
     out_dir = Path(out_dir) if out_dir is not None else recipe_module.DATA_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     plt = _matplotlib()
@@ -300,9 +216,6 @@ def make_figures(summary: Dict[str, Any], directory: str | Path,
             path = None
         if path is not None:
             written.append(Path(f'{path}.png'))
-    path = figure_rlderiv(plt, summary, out_dir / 'fig_rlderiv.png')
-    if path is not None:
-        written.append(path)
     return written
 
 
@@ -489,8 +402,13 @@ def write_report(summary: Dict[str, Any], out_dir: Optional[str | Path] = None) 
 
     lines += ['## Figures', '',
               '![radial](fig_radial.png)', '',
+              'All-electron orbitals as solid lines, pseudo-orbitals as open symbols; the '
+              'vertical dotted lines are the pseudization radii. The all-electron core '
+              'states (4F, 5D) have no pseudo-orbital and are not drawn.', '',
               '![log derivatives](fig_logderiv.png)', '',
-              '![rlderiv scan](fig_rlderiv.png)', '']
+              'All-electron curves solid, pseudo curves dotted, one colour per angular '
+              'momentum channel. Pole correspondence is in the table above, not marked '
+              'on the figure.', '']
 
     path = out / 'REPORT.md'
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')

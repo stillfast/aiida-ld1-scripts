@@ -175,10 +175,14 @@ previous files are kept as `*.bak`):
 | all-electron curve | **solid line** |
 | pseudo-orbital | **open symbols** (radial) / **dotted line** (log derivative) |
 | pseudization radius | vertical **dotted** line, one per channel, with `rc` in bohr |
-| poles | AE pole = dashed vertical line, PS pole = triangle on the axis |
 | colour | Okabe–Ito, one fixed colour per `l` channel; AE/PS never distinguished by colour |
+| titles | **none** — the axes are labelled and the manuscript supplies the caption |
+| extras | none: no inset, no pole markers, no annotations on the curves |
 | units | **bohr** (not Å as in the paper: this recipe's cards and `ld1.test` are in bohr) |
 | labels | `AE` / `PS` — the pseudopotential is norm-conserving, not PAW |
+
+The `rlderiv` scan is **not plotted**. A figure of it hides the column that decides (the
+pole verdict) and its meaning is not evident from the picture; it is a 5-row SI table.
 
 Two renderer details are load-bearing and are covered by `tests/test_figures.py`:
 `bbox_inches='tight'` alone does **not** include an inset axes' decorations (so they are
@@ -188,7 +192,7 @@ passed as `bbox_extra_artists`), and `Figure.get_tightbbox` is in inches while
 ## Tests
 
 ```bash
-pytest        # 26 tests, no database needed
+pytest        # 27 tests, no database needed
 ```
 
 The fixtures in `tests/data/` are the ten `.dlog` files of the reference `rlderiv` scan,
