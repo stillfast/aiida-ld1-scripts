@@ -206,6 +206,62 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
     return _save(figure, Path(out_base), plt, formats)
 
 
+#: semantic colours of Torres Fig. 1: the claim is "core vs valence", not "which orbital"
+CORE_COLOUR = '#0072B2'
+VALENCE_COLOUR = '#D62728'
+#: this recipe's valence orbitals (the outer 14 electrons), from its state cards
+DEFAULT_VALENCE = ('6S', '7S', '6P', '6D', '5F')
+
+
+def figure_radial_ae(plt, directory: str | Path, out_base: Path, *, valence=None,
+                     formats: Sequence[str] = ('png',)) -> Optional[Path]:
+    """All-electron outer-shell radial wavefunctions (Torres & Kaloni Fig. 1).
+
+    Core orbitals (4f, 5d) are **blue**, valence orbitals (6s 6p 6d 5f 7s) **red** -- the
+    figure argues the core/valence partition, so the legend carries only those two labels,
+    not one entry per orbital.  All-electron only: the pseudopotential has not entered yet.
+    """
+    import numpy as np
+    from matplotlib.lines import Line2D
+
+    directory = Path(directory)
+    ae_file = directory / 'ld1.wfc'
+    if not ae_file.is_file():
+        return None
+    labels, grid, values = analysis.read_wfc(ae_file)
+    if values.size == 0:
+        return None
+    valence = set(valence if valence is not None else DEFAULT_VALENCE)
+
+    figure, axis = plt.subplots(figsize=(6.2, 3.9))
+    for index, label in enumerate(labels):
+        colour = VALENCE_COLOUR if label in valence else CORE_COLOUR
+        axis.plot(grid, values[:, index], '-', color=colour, lw=1.4)
+
+    # the abscissa stops where the outermost orbital has died out, not at the end of the
+    # 100 bohr grid
+    reaches = []
+    for index in range(values.shape[1]):
+        column = np.abs(values[:, index])
+        top = float(column.max())
+        if top <= 0.0:
+            continue
+        tail = grid[column > 0.01 * top]
+        if tail.size:
+            reaches.append(float(tail.max()))
+    xmax = min(max(reaches) * 1.05 if reaches else 8.0, 8.0, float(grid[-1]))
+
+    axis.set_xlim(0.0, xmax)
+    axis.set_xlabel('r (bohr)')
+    axis.set_ylabel('u(r) = r·R(r)  (arb. units)')
+    axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
+    _polish(axis)
+    axis.legend(handles=[Line2D([], [], color=CORE_COLOUR, lw=1.4, label='core'),
+                         Line2D([], [], color=VALENCE_COLOUR, lw=1.4, label='valence')],
+                loc='upper right', frameon=False)
+    return _save(figure, Path(out_base), plt, formats)
+
+
 def figure_logderiv(plt, directory: str | Path, out_base: Path, *,
                     window=(-3.0, 3.0), threshold: float = analysis.POLE_THRESHOLD,
                     log_ordinate: bool = False,
@@ -318,12 +374,13 @@ def figure_projectors(plt, directory: str | Path, out_base: Path, *,
 
 
 def export_paper_figures(directory: str | Path, paper_dir: str | Path, *,
-                         rcuts=None, window=(-3.0, 3.0),
+                         rcuts=None, valence=None, window=(-3.0, 3.0),
                          threshold: float = analysis.POLE_THRESHOLD,
                          formats: Sequence[str] = ('png', 'svg', 'pdf')) -> List[Path]:
-    """Write the two paper figures (3 formats) into ``paper_dir``, backing up the old ones.
+    """Write the manuscript figures (3 formats) into ``paper_dir``, backing up the old ones.
 
-    The names are the ones the manuscript uses: ``fig3_1_radial`` and ``fig3_3_logderiv``.
+    The names are the ones the manuscript uses: ``fig3_1_radial``, ``fig3_3_logderiv`` and
+    the all-electron outer-shell figure (Torres Fig. 1).
     """
     import shutil
 
@@ -332,14 +389,16 @@ def export_paper_figures(directory: str | Path, paper_dir: str | Path, *,
     paper_dir.mkdir(parents=True, exist_ok=True)
     written: List[Path] = []
     for function, base, extra in (
+            (figure_radial_ae, 'fig_ae_outer_shells', {'valence': valence}),
             (figure_radial, 'fig3_1_radial', {'rcuts': rcuts}),
             (figure_logderiv, 'fig3_3_logderiv',
              {'window': window, 'threshold': threshold})):
         base_path = paper_dir / base
-        for suffix in formats:                      # never lose the previous version
+        for suffix in formats:                      # write-once: keep the original
             current = Path(f'{base_path}.{suffix}')
-            if current.is_file():
-                shutil.copy2(current, f'{base_path}.{suffix}.bak')
+            backup = Path(f'{base_path}.{suffix}.bak')
+            if current.is_file() and not backup.exists():
+                shutil.copy2(current, backup)
         result = function(plt, directory, base_path, formats=formats, **extra)
         if result is not None:
             written.append(result)
@@ -354,8 +413,11 @@ def make_figures(summary: Dict[str, Any], directory: str | Path,
     plt = _matplotlib()
     rcuts = {label: entry['rcut']
              for label, entry in (summary['generation'].get('wavefunctions') or {}).items()}
+    valence = {str(state['label']) for state in summary['generation'].get('states') or []} \
+        or None
     written: List[Path] = []
     for function, base, extra in (
+            (figure_radial_ae, 'fig_radial_ae', {'valence': valence}),
             (figure_radial, 'fig_radial', {'rcuts': rcuts}),
             (figure_radial, 'fig_radial_logx',
              {'rcuts': rcuts, 'xscale': 'log', 'xlim': (1e-2, 1e2),
@@ -559,6 +621,10 @@ def write_report(summary: Dict[str, Any], out_dir: Optional[str | Path] = None) 
         lines.append('')
 
     lines += ['## Figures', '',
+              '![all-electron shells](fig_radial_ae.png)', '',
+              'All-electron radial wavefunctions of the outer shells, with the core '
+              'orbitals (4f, 5d) in blue and the valence orbitals (6s 6p 6d 5f 7s) in red '
+              '-- the partition the pseudopotential is built on (Torres Fig. 1).', '',
               '![radial](fig_radial.png)', '',
               'All-electron orbitals as solid lines, pseudo-orbitals as open symbols; the '
               'vertical dotted lines are the pseudization radii. The all-electron core '

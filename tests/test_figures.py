@@ -25,14 +25,23 @@ def write_run(directory: Path) -> Path:
     """A tiny run directory: 3 all-electron columns, 2 pseudized channels, a pole."""
     directory.mkdir(parents=True, exist_ok=True)
     r = np.linspace(0.01, 8.0, 200)
-    core = np.exp(-2.0 * r)               # an all-electron core state: no pseudo partner
-    s = np.exp(-r) * (1.0 - np.exp(-6 * r))
-    f = r ** 3 * np.exp(-r)
-    # ld1.wfc: AE, including one channel the pseudopotential has no orbital for
+    # seven all-electron outer shells, in the real file order; 4f/5d are the core ones
+    s = np.exp(-r) * (1.0 - np.exp(-6 * r))          # 6S
+    shells = {
+        '7S': np.exp(-0.5 * r) * (1.0 - np.exp(-6 * r)),
+        '6D': r ** 2 * np.exp(-r),
+        '5F': r ** 3 * np.exp(-r),
+        '6P': r * np.exp(-r),
+        '4F': r ** 3 * np.exp(-2.0 * r),
+        '5D': r ** 2 * np.exp(-2.0 * r),
+        '6S': s,
+    }
+    f = shells['5F']                                 # reused by the ld1ps.wfc block
+    labels = list(shells)
     (directory / 'ld1.wfc').write_text(
-        '#            r                  6S                  4F                  5F\n'
-        + ''.join(f'{x:20.12f}{a:20.12f}{c:20.12f}{b:20.12f}\n'
-                  for x, a, b, c in zip(r, s, f, core)), encoding='utf-8')
+        '#            r' + ''.join(f'{label:>20s}' for label in labels) + '\n'
+        + ''.join(f'{x:20.12f}' + ''.join(f'{shells[label][i]:20.12f}' for label in labels)
+                  + '\n' for i, x in enumerate(r)), encoding='utf-8')
     # ld1ps.wfc: PS half then phase-aligned AE half (the all-electron one is negated,
     # which is what align_phase has to detect)
     (directory / 'ld1ps.wfc').write_text(
@@ -182,13 +191,14 @@ def test_export_paper_figures_backs_up_the_previous_files(tmp_path, monkeypatch)
     paper.mkdir()
     (paper / 'fig3_1_radial.png').write_text('old radial', encoding='utf-8')
     (paper / 'fig3_3_logderiv.png').write_text('old logderiv', encoding='utf-8')
+    (paper / 'fig_ae_outer_shells.png').write_text('old shells', encoding='utf-8')
 
     plt = report_module._matplotlib()
     monkeypatch.setattr(report_module, '_matplotlib', lambda: plt)
     written = report_module.export_paper_figures(
         directory, paper, rcuts={'6S': 1.5, '5F': 1.3}, formats=('png',))
-    assert len(written) == 2
-    for name in ('fig3_1_radial', 'fig3_3_logderiv'):
+    assert len(written) == 3
+    for name in ('fig_ae_outer_shells', 'fig3_1_radial', 'fig3_3_logderiv'):
         assert Path(f'{paper}/{name}.png.bak').read_text(encoding='utf-8').startswith('old')
         assert Path(f'{paper}/{name}.png').stat().st_size > 1000
 
@@ -273,7 +283,7 @@ def test_the_shipped_configuration_is_what_we_think_it_is(monkeypatch, tmp_path)
     written = report_module.make_figures(summary, directory, tmp_path / 'data')
 
     assert sorted(captured) == ['fig_logderiv', 'fig_projectors', 'fig_radial',
-                                'fig_radial_logx']
+                                'fig_radial_ae', 'fig_radial_logx']
     assert sorted(Path(path).stem for path in written) == sorted(captured)
     linear = captured['fig_radial'].axes[0]
     assert (linear.get_xscale(), linear.get_yscale()) == ('linear', 'linear')
@@ -346,3 +356,33 @@ def test_the_log_ordinate_option_still_works(captured):
     assert axes.get_yscale() == 'log'
     assert axes.get_ylabel().startswith('$|L_l(E)|$')
     assert axes.get_xscale() == 'linear'
+
+
+# ------------------------------------------------------- all-electron shells
+
+def test_the_all_electron_outer_shell_figure(captured):
+    """Torres Fig. 1: 7 outer shells, core blue / valence red, two legend entries."""
+    render, _plt = captured
+    figure, renderer, Text = render('figure_radial_ae')
+    axis = figure.axes[0]
+    assert len(figure.axes) == 1
+    curves = [line for line in axis.get_lines() if len(set(line.get_xdata())) > 2]
+    assert len(curves) == 7
+    red = [line for line in curves if line.get_color() == report_module.VALENCE_COLOUR]
+    blue = [line for line in curves if line.get_color() == report_module.CORE_COLOUR]
+    assert len(red) == 5 and len(blue) == 2
+    legend = [text.get_text() for text in axis.get_legend().get_texts()]
+    assert sorted(legend) == ['core', 'valence']
+    assert axis.get_xlabel() == 'r (bohr)'
+    assert axis.get_title() == ''
+    assert outside_tight_bbox(figure, renderer, Text) == []
+
+
+def test_the_shell_figure_respects_an_explicit_valence_set(captured):
+    """A caller-supplied valence set overrides the recipe default."""
+    render, _plt = captured
+    figure, _r, _T = render('figure_radial_ae', valence={'6S', '5F'})
+    axis = figure.axes[0]
+    curves = [line for line in axis.get_lines() if len(set(line.get_xdata())) > 2]
+    red = [line for line in curves if line.get_color() == report_module.VALENCE_COLOUR]
+    assert len(red) == 2

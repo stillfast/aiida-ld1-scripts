@@ -186,6 +186,7 @@ logarithmic — but nothing ships with it). Two other files are repository-only:
 
 | file | content |
 |---|---|
+| `fig_radial_ae.png` | all-electron outer shells, core (4f, 5d) blue / valence (6s 6p 6d 5f 7s) red (Torres Fig. 1) |
 | `fig_projectors.png` | the six `beta(r)`, not part of `fig3_1/fig3_3` |
 | `fig_radial_logx.png` | logarithmic abscissa `1e-2 … 1e2 bohr`, pseudo curve dashed *and* open symbols, linear ordinate |
 | units | **bohr** (not Å as in the paper: this recipe's cards and `ld1.test` are in bohr) |

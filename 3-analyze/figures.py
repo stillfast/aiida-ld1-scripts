@@ -45,8 +45,10 @@ def main():
         if arguments.paper:
             rcuts = {label: entry['rcut'] for label, entry
                      in (summary['generation'].get('wavefunctions') or {}).items()}
+            valence = {str(state['label'])
+                       for state in summary['generation'].get('states') or []} or None
             written = report_module.export_paper_figures(
-                directory, arguments.paper, rcuts=rcuts,
+                directory, arguments.paper, rcuts=rcuts, valence=valence,
                 window=summary['criteria']['window'],
                 threshold=summary['criteria']['pole_threshold'])
             for base in written:
