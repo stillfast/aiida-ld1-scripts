@@ -372,7 +372,12 @@ def test_the_all_electron_outer_shell_figure(captured):
     blue = [line for line in curves if line.get_color() == report_module.CORE_COLOUR]
     assert len(red) == 5 and len(blue) == 2
     legend = [text.get_text() for text in axis.get_legend().get_texts()]
-    assert sorted(legend) == ['core', 'valence']
+    # core first (4f, 5d), then valence by (n, l)
+    assert legend == ['4f', '5d', '5f', '6s', '6p', '6d', '7s']
+    handles = axis.get_legend().legend_handles
+    red = [h for h in handles if h.get_color() == report_module.VALENCE_COLOUR]
+    blue = [h for h in handles if h.get_color() == report_module.CORE_COLOUR]
+    assert len(red) == 5 and len(blue) == 2
     assert axis.get_xlabel() == 'r (bohr)'
     assert axis.get_title() == ''
     assert axis.get_xscale() == 'log'

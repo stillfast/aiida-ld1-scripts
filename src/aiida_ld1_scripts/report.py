@@ -260,9 +260,20 @@ def figure_radial_ae(plt, directory: str | Path, out_base: Path, *, valence=None
     axis.set_ylabel('u(r) = r·R(r)  (arb. units)')
     axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
     _polish(axis)
-    axis.legend(handles=[Line2D([], [], color=CORE_COLOUR, lw=1.4, label='core'),
-                         Line2D([], [], color=VALENCE_COLOUR, lw=1.4, label='valence')],
-                loc='upper right', frameon=False)
+    def display(label):
+        return label[0] + label[1].lower()          # 4F -> 4f
+
+    def principal(label):
+        digits = ''.join(ch for ch in label if ch.isdigit())
+        return int(digits) if digits else 0
+
+    # core orbitals first, then valence, each ordered by (n, l)
+    ordered = sorted(labels, key=lambda lab: (1 if lab in valence else 0,
+                                              principal(lab),
+                                              analysis.state_l(lab)))
+    handles = [Line2D([], [], color=(VALENCE_COLOUR if lab in valence else CORE_COLOUR),
+                      lw=1.4, label=display(lab)) for lab in ordered]
+    axis.legend(handles=handles, loc='upper right', frameon=False)
     return _save(figure, Path(out_base), plt, formats)
 
 
