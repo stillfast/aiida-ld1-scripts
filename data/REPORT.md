@@ -107,7 +107,7 @@ The production pseudopotential uses the recipe value (`rlderiv = 5.0`); this sca
 
 ![all-electron shells](fig_radial_ae.png)
 
-All-electron radial wavefunctions of the outer shells, with the core orbitals (4f, 5d) in blue and the valence orbitals (6s 6p 6d 5f 7s) in red -- the partition the pseudopotential is built on (Torres Fig. 1).
+All-electron radial wavefunctions of the outer shells. The core orbitals share blue and are told apart by line style (4f solid, 5d dashed); every valence orbital has its own colour (Torres Fig. 1).
 
 ![radial](fig_radial.png)
 

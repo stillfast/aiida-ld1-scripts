@@ -361,23 +361,26 @@ def test_the_log_ordinate_option_still_works(captured):
 # ------------------------------------------------------- all-electron shells
 
 def test_the_all_electron_outer_shell_figure(captured):
-    """Torres Fig. 1: 7 outer shells, core blue / valence red, two legend entries."""
+    """Torres Fig. 1: 7 outer shells; core shares blue (solid/dashed), valence each its colour."""
     render, _plt = captured
     figure, renderer, Text = render('figure_radial_ae')
     axis = figure.axes[0]
     assert len(figure.axes) == 1
     curves = [line for line in axis.get_lines() if len(set(line.get_xdata())) > 2]
     assert len(curves) == 7
-    red = [line for line in curves if line.get_color() == report_module.VALENCE_COLOUR]
+    # 2 core curves share blue and differ by line style; 5 valence curves are non-blue
     blue = [line for line in curves if line.get_color() == report_module.CORE_COLOUR]
-    assert len(red) == 5 and len(blue) == 2
+    assert len(blue) == 2
+    blue_styles = {line.get_linestyle() for line in blue}
+    assert len(blue_styles) == 2                      # 4f solid vs 5d dashed
+    non_blue = [line for line in curves if line.get_color() != report_module.CORE_COLOUR]
+    assert len(non_blue) == 5
+    assert len({line.get_color() for line in non_blue}) == 5   # all distinct
     legend = [text.get_text() for text in axis.get_legend().get_texts()]
-    # core first (4f, 5d), then valence by (n, l)
     assert legend == ['4f', '5d', '5f', '6s', '6p', '6d', '7s']
     handles = axis.get_legend().legend_handles
-    red = [h for h in handles if h.get_color() == report_module.VALENCE_COLOUR]
-    blue = [h for h in handles if h.get_color() == report_module.CORE_COLOUR]
-    assert len(red) == 5 and len(blue) == 2
+    assert [h.get_color() for h in handles].count(report_module.CORE_COLOUR) == 2
+    assert len({h.get_color() for h in handles}) == 6  # 1 blue + 5 distinct valence colours
     assert axis.get_xlabel() == 'r (bohr)'
     assert axis.get_title() == ''
     assert axis.get_xscale() == 'log'
@@ -392,5 +395,6 @@ def test_the_shell_figure_respects_an_explicit_valence_set(captured):
     figure, _r, _T = render('figure_radial_ae', valence={'6S', '5F'})
     axis = figure.axes[0]
     curves = [line for line in axis.get_lines() if len(set(line.get_xdata())) > 2]
-    red = [line for line in curves if line.get_color() == report_module.VALENCE_COLOUR]
-    assert len(red) == 2
+    blue = [line for line in curves if line.get_color() == report_module.CORE_COLOUR]
+    non_blue = [line for line in curves if line.get_color() != report_module.CORE_COLOUR]
+    assert len(blue) == 5 and len(non_blue) == 2   # valence={'6S','5F'} -> the other 5 are core

@@ -209,6 +209,8 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
 #: semantic colours of Torres Fig. 1: the claim is "core vs valence", not "which orbital"
 CORE_COLOUR = '#0072B2'
 VALENCE_COLOUR = '#D62728'
+#: one colour per valence orbital, none of them close to the blue reserved for the core
+VALENCE_PALETTE = ('#D62728', '#E69F00', '#009E73', '#CC79A7', '#8C564B')
 #: this recipe's valence orbitals (the outer 14 electrons), from its state cards
 DEFAULT_VALENCE = ('6S', '7S', '6P', '6D', '5F')
 
@@ -218,9 +220,10 @@ def figure_radial_ae(plt, directory: str | Path, out_base: Path, *, valence=None
                      formats: Sequence[str] = ('png',)) -> Optional[Path]:
     """All-electron outer-shell radial wavefunctions (Torres & Kaloni Fig. 1).
 
-    Core orbitals (4f, 5d) are **blue**, valence orbitals (6s 6p 6d 5f 7s) **red** -- the
-    figure argues the core/valence partition, so the legend carries only those two labels,
-    not one entry per orbital.  All-electron only: the pseudopotential has not entered yet.
+    The core orbitals (4f, 5d) share **blue** and are told apart by their line style (4f
+    solid, 5d dashed); every valence orbital gets its own non-blue colour, so none of them
+    can be mistaken for a core orbital.  All-electron only: the pseudopotential has not
+    entered yet.
     """
     import numpy as np
     from matplotlib.lines import Line2D
@@ -234,10 +237,23 @@ def figure_radial_ae(plt, directory: str | Path, out_base: Path, *, valence=None
         return None
     valence = set(valence if valence is not None else DEFAULT_VALENCE)
 
+    # (colour, linestyle) per orbital: the core shares blue (solid then dashed), each
+    # valence orbital takes its own non-blue colour
+    styles: Dict[str, tuple] = {}
+    core_seen = 0
+    valence_seen = 0
+    for label in labels:
+        if label in valence:
+            styles[label] = (VALENCE_PALETTE[valence_seen % len(VALENCE_PALETTE)], '-')
+            valence_seen += 1
+        else:
+            styles[label] = (CORE_COLOUR, '-' if core_seen == 0 else (0, (4, 2)))
+            core_seen += 1
+
     figure, axis = plt.subplots(figsize=(6.2, 3.9))
     for index, label in enumerate(labels):
-        colour = VALENCE_COLOUR if label in valence else CORE_COLOUR
-        axis.plot(grid, values[:, index], '-', color=colour, lw=1.4)
+        colour, style = styles[label]
+        axis.plot(grid, values[:, index], linestyle=style, color=colour, lw=1.4)
 
     if str(xscale).lower() == 'log':
         axis.set_xscale('log')
@@ -271,7 +287,7 @@ def figure_radial_ae(plt, directory: str | Path, out_base: Path, *, valence=None
     ordered = sorted(labels, key=lambda lab: (1 if lab in valence else 0,
                                               principal(lab),
                                               analysis.state_l(lab)))
-    handles = [Line2D([], [], color=(VALENCE_COLOUR if lab in valence else CORE_COLOUR),
+    handles = [Line2D([], [], color=styles[lab][0], linestyle=styles[lab][1],
                       lw=1.4, label=display(lab)) for lab in ordered]
     axis.legend(handles=handles, loc='upper right', frameon=False)
     return _save(figure, Path(out_base), plt, formats)
@@ -637,9 +653,9 @@ def write_report(summary: Dict[str, Any], out_dir: Optional[str | Path] = None) 
 
     lines += ['## Figures', '',
               '![all-electron shells](fig_radial_ae.png)', '',
-              'All-electron radial wavefunctions of the outer shells, with the core '
-              'orbitals (4f, 5d) in blue and the valence orbitals (6s 6p 6d 5f 7s) in red '
-              '-- the partition the pseudopotential is built on (Torres Fig. 1).', '',
+              'All-electron radial wavefunctions of the outer shells. The core orbitals '
+              'share blue and are told apart by line style (4f solid, 5d dashed); every '
+              'valence orbital has its own colour (Torres Fig. 1).', '',
               '![radial](fig_radial.png)', '',
               'All-electron orbitals as solid lines, pseudo-orbitals as open symbols; the '
               'vertical dotted lines are the pseudization radii. The all-electron core '
