@@ -214,6 +214,7 @@ DEFAULT_VALENCE = ('6S', '7S', '6P', '6D', '5F')
 
 
 def figure_radial_ae(plt, directory: str | Path, out_base: Path, *, valence=None,
+                     xscale: str = 'log', xlim=(1e-2, 1e2),
                      formats: Sequence[str] = ('png',)) -> Optional[Path]:
     """All-electron outer-shell radial wavefunctions (Torres & Kaloni Fig. 1).
 
@@ -238,20 +239,23 @@ def figure_radial_ae(plt, directory: str | Path, out_base: Path, *, valence=None
         colour = VALENCE_COLOUR if label in valence else CORE_COLOUR
         axis.plot(grid, values[:, index], '-', color=colour, lw=1.4)
 
-    # the abscissa stops where the outermost orbital has died out, not at the end of the
-    # 100 bohr grid
-    reaches = []
-    for index in range(values.shape[1]):
-        column = np.abs(values[:, index])
-        top = float(column.max())
-        if top <= 0.0:
-            continue
-        tail = grid[column > 0.01 * top]
-        if tail.size:
-            reaches.append(float(tail.max()))
-    xmax = min(max(reaches) * 1.05 if reaches else 8.0, 8.0, float(grid[-1]))
-
-    axis.set_xlim(0.0, xmax)
+    if str(xscale).lower() == 'log':
+        axis.set_xscale('log')
+        axis.set_xlim(float(xlim[0]), float(xlim[1]))
+    else:
+        # on a linear axis the abscissa stops where the outermost orbital has died out,
+        # not at the end of the 100 bohr grid
+        reaches = []
+        for index in range(values.shape[1]):
+            column = np.abs(values[:, index])
+            top = float(column.max())
+            if top <= 0.0:
+                continue
+            tail = grid[column > 0.01 * top]
+            if tail.size:
+                reaches.append(float(tail.max()))
+        xmax = min(max(reaches) * 1.05 if reaches else 8.0, 8.0, float(grid[-1]))
+        axis.set_xlim(0.0, xmax)
     axis.set_xlabel('r (bohr)')
     axis.set_ylabel('u(r) = r·R(r)  (arb. units)')
     axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)

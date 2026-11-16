@@ -375,6 +375,9 @@ def test_the_all_electron_outer_shell_figure(captured):
     assert sorted(legend) == ['core', 'valence']
     assert axis.get_xlabel() == 'r (bohr)'
     assert axis.get_title() == ''
+    assert axis.get_xscale() == 'log'
+    assert axis.get_yscale() == 'linear'
+    assert axis.get_xlim() == pytest.approx((0.01, 100.0))
     assert outside_tight_bbox(figure, renderer, Text) == []
 
 
