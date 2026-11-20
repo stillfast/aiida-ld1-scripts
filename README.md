@@ -192,8 +192,50 @@ logarithmic — but nothing ships with it). Two other files are repository-only:
 | units | **bohr** (not Å as in the paper: this recipe's cards and `ld1.test` are in bohr) |
 | labels | `AE` / `PS` — the pseudopotential is norm-conserving, not PAW |
 
-The `rlderiv` scan is **not plotted**. A figure of it hides the column that decides (the
-pole verdict) and its meaning is not evident from the picture; it is a 5-row SI table.
+### Supplementary Figure S1: diagnostic-radius scan
+
+![AE/PS logarithmic derivatives at five diagnostic radii](data/fig-S1-logderiv-radius-scan-preview.png)
+
+Redraw from the ten committed raw `.dlog` files, **without AiiDA or QE**:
+
+```bash
+python -m pip install numpy matplotlib
+python 3-analyze/figures.py --scan-only
+# Use a separately exported scan and output directory:
+python 3-analyze/figures.py --scan-only --scan-root /path/to/rlderiv_scan --out /path/to/figures
+```
+
+The implementation is [logderiv_scan.py](src/aiida_ld1_scripts/logderiv_scan.py).
+The normal `python 3-analyze/figures.py` pipeline also exports S1 from the scan nodes
+recorded in `summary.json`, checked against the selected AiiDA group. It does not use
+the reference fixtures for a live group. `--scan-root` overrides that source explicitly.
+S1 expects the reference five radii (4–8 bohr), four channels, matching AE/PS energy
+grids spanning −3 to 3 Ry; other scan designs need their own panel specification.
+
+Rows represent diagnostic radii; columns represent s, p, d, f. AE is charcoal/solid;
+PS is orange/dashed with hollow markers. Every raw sample is drawn and exported
+(301 energies × 5 radii × 4 channels × 2 = **12,040 values** in the reference scan).
+The shared signed symlog axis is linear for |L| ≤ 1; its range includes all values.
+No smoothing, interpolation, subsampling, fitting or radius ranking is performed.
+Changing the diagnostic radius changes the observation position, not the generation
+recipe, and this plot is not an acceptance test or a ghost-state exclusion proof.
+
+`--jump-threshold 5` only breaks a connecting line when adjacent values have opposite
+signs and both have |L| ≥ 5. All endpoint samples remain visible and exported. It is
+**not** the pole threshold in `analysis.py` or a physical error tolerance.
+
+Exports in `data/` (or `--out`):
+
+- `fig-S1-logderiv-radius-scan.png` (600 dpi), `.pdf`, `.svg` (editable text)
+- `fig-S1-logderiv-radius-scan-preview.png` (300 dpi)
+- `fig-S1-source.csv`: original AE/PS values and display-break flags
+- `fig-S1-metadata.json`: input SHA256 hashes, counts, display settings and versions
+- `fig-S1-alignment.json`: final plot-area alignment check
+
+The 178 × 210 mm figure uses a fixed canvas and checks its 20 plot rectangles before
+export. Optional `audit_panel_alignment` adds label/typography checks when installed;
+the built-in geometric check keeps the repository independent of that authoring tool.
+The original single-radius `fig_logderiv.png` remains the main-text figure.
 
 Two renderer details are load-bearing and are covered by `tests/test_figures.py`:
 `bbox_inches='tight'` alone does **not** include an inset axes' decorations (so they are
@@ -203,7 +245,7 @@ passed as `bbox_extra_artists`), and `Figure.get_tightbbox` is in inches while
 ## Tests
 
 ```bash
-pytest        # 32 tests, no database needed
+pytest        # no database needed
 ```
 
 The fixtures in `tests/data/` are the ten `.dlog` files of the reference `rlderiv` scan,

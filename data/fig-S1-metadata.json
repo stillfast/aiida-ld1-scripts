@@ -1,0 +1,325 @@
+{
+  "repository": "https://github.com/stillfast/aiida-ld1-scripts",
+  "schema_version": 1,
+  "input_files": [
+    {
+      "relative_path": "rlderiv_4p0/ld1.dlog",
+      "sha256": "28ad28be0ef739a6aff1230a17724e27c53e1f9ba357fbf7d6c53c84408d667a",
+      "rows": 301
+    },
+    {
+      "relative_path": "rlderiv_4p0/ld1ps.dlog",
+      "sha256": "bab88d932be27b7d70369a9b39439882111bb4fdd6be3f73466d147e4046600f",
+      "rows": 301
+    },
+    {
+      "relative_path": "rlderiv_5p0/ld1.dlog",
+      "sha256": "7dddf80fb25e883eb134040bd14acc47c9830fbfa24cbff0013fd2f43c9b303c",
+      "rows": 301
+    },
+    {
+      "relative_path": "rlderiv_5p0/ld1ps.dlog",
+      "sha256": "dddcd493581f1851fee47fe6e4ea2c39e8c80e2e1f93df0bae998f4e713528f1",
+      "rows": 301
+    },
+    {
+      "relative_path": "rlderiv_6p0/ld1.dlog",
+      "sha256": "08cbae8840e265dee70a89fa775af65cac7a8ab9a70a66e4523fd687252a9f2c",
+      "rows": 301
+    },
+    {
+      "relative_path": "rlderiv_6p0/ld1ps.dlog",
+      "sha256": "99226c094e7ec16b2463a263d3e4a0cdd4134753d4e7b2da08f74cea47d1bac5",
+      "rows": 301
+    },
+    {
+      "relative_path": "rlderiv_7p0/ld1.dlog",
+      "sha256": "f97a958b17a4178dad75c1fcc8253728ca89c9bfb1f1d02f3a02b0668c12575b",
+      "rows": 301
+    },
+    {
+      "relative_path": "rlderiv_7p0/ld1ps.dlog",
+      "sha256": "8f1d4f38bb6a587f1d46afb7a6b2f646a3bb3bc754f1ca9564cb49789a550507",
+      "rows": 301
+    },
+    {
+      "relative_path": "rlderiv_8p0/ld1.dlog",
+      "sha256": "4d6065bf18517dc983d86558fd4748832f7453c80409fe5d4a0c25f7467cb402",
+      "rows": 301
+    },
+    {
+      "relative_path": "rlderiv_8p0/ld1ps.dlog",
+      "sha256": "4acb18bff85c00bd01ace4115bd00501128764838a7eef60afc512ca5ff15295",
+      "rows": 301
+    }
+  ],
+  "radii_bohr": [
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "angular_momenta": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "source_value_count": 12040,
+  "energy_window_Ry": [
+    -3,
+    3
+  ],
+  "symlog": {
+    "linthresh": 1.0,
+    "linscale": 0.6
+  },
+  "display_ylimit": [
+    -10000.0,
+    10000.0
+  ],
+  "jump_connector_threshold": 5.0,
+  "broken_connectors": [
+    {
+      "radius_bohr": 4,
+      "l": 0,
+      "AE_break_indices": [
+        178
+      ],
+      "PS_break_indices": [
+        178
+      ]
+    },
+    {
+      "radius_bohr": 4,
+      "l": 1,
+      "AE_break_indices": [
+        227
+      ],
+      "PS_break_indices": [
+        227
+      ]
+    },
+    {
+      "radius_bohr": 4,
+      "l": 2,
+      "AE_break_indices": [
+        158
+      ],
+      "PS_break_indices": [
+        158
+      ]
+    },
+    {
+      "radius_bohr": 4,
+      "l": 3,
+      "AE_break_indices": [
+        254
+      ],
+      "PS_break_indices": [
+        259
+      ]
+    },
+    {
+      "radius_bohr": 5,
+      "l": 0,
+      "AE_break_indices": [
+        149,
+        263
+      ],
+      "PS_break_indices": [
+        149,
+        262
+      ]
+    },
+    {
+      "radius_bohr": 5,
+      "l": 1,
+      "AE_break_indices": [
+        180
+      ],
+      "PS_break_indices": [
+        180
+      ]
+    },
+    {
+      "radius_bohr": 5,
+      "l": 2,
+      "AE_break_indices": [
+        148,
+        233
+      ],
+      "PS_break_indices": [
+        148,
+        232
+      ]
+    },
+    {
+      "radius_bohr": 5,
+      "l": 3,
+      "AE_break_indices": [
+        213
+      ],
+      "PS_break_indices": [
+        214
+      ]
+    },
+    {
+      "radius_bohr": 6,
+      "l": 0,
+      "AE_break_indices": [
+        140,
+        211
+      ],
+      "PS_break_indices": [
+        140,
+        210
+      ]
+    },
+    {
+      "radius_bohr": 6,
+      "l": 1,
+      "AE_break_indices": [
+        161,
+        241
+      ],
+      "PS_break_indices": [
+        161,
+        241
+      ]
+    },
+    {
+      "radius_bohr": 6,
+      "l": 2,
+      "AE_break_indices": [
+        198,
+        290
+      ],
+      "PS_break_indices": [
+        198,
+        287
+      ]
+    },
+    {
+      "radius_bohr": 6,
+      "l": 3,
+      "AE_break_indices": [
+        192,
+        264
+      ],
+      "PS_break_indices": [
+        192,
+        267
+      ]
+    },
+    {
+      "radius_bohr": 7,
+      "l": 0,
+      "AE_break_indices": [
+        186,
+        263
+      ],
+      "PS_break_indices": [
+        186,
+        263
+      ]
+    },
+    {
+      "radius_bohr": 7,
+      "l": 1,
+      "AE_break_indices": [
+        154,
+        208,
+        292
+      ],
+      "PS_break_indices": [
+        154,
+        208,
+        292
+      ]
+    },
+    {
+      "radius_bohr": 7,
+      "l": 2,
+      "AE_break_indices": [
+        182,
+        246
+      ],
+      "PS_break_indices": [
+        182,
+        245
+      ]
+    },
+    {
+      "radius_bohr": 7,
+      "l": 3,
+      "AE_break_indices": [
+        181,
+        233
+      ],
+      "PS_break_indices": [
+        181,
+        234
+      ]
+    },
+    {
+      "radius_bohr": 8,
+      "l": 0,
+      "AE_break_indices": [
+        172,
+        227
+      ],
+      "PS_break_indices": [
+        172,
+        227
+      ]
+    },
+    {
+      "radius_bohr": 8,
+      "l": 1,
+      "AE_break_indices": [
+        189,
+        249
+      ],
+      "PS_break_indices": [
+        189,
+        249
+      ]
+    },
+    {
+      "radius_bohr": 8,
+      "l": 2,
+      "AE_break_indices": [
+        172,
+        218,
+        285
+      ],
+      "PS_break_indices": [
+        172,
+        218,
+        283
+      ]
+    },
+    {
+      "radius_bohr": 8,
+      "l": 3,
+      "AE_break_indices": [
+        173,
+        212,
+        268
+      ],
+      "PS_break_indices": [
+        173,
+        213,
+        270
+      ]
+    }
+  ],
+  "excluded_samples": 0,
+  "processing": "unchanged QE columns; no smoothing, fitting, resampling or ranking; heuristic line breaks retain all points",
+  "source_csv_sha256": "af3b6abb46ac25d50eec69e6007c38de4c06a32b8d0a7add3fd878317fdfadda",
+  "python": "3.12.7",
+  "numpy": "1.26.4",
+  "matplotlib": "3.9.2"
+}

@@ -6,9 +6,8 @@ manuscript captions them):
 ``fig_radial.png``     do the pseudo and all-electron radial functions agree?
 ``fig_logderiv.png``   do the logarithmic derivatives agree?
 
-There is deliberately no plot of the ``rlderiv`` scan: its meaning is not evident from a
-picture, the decisive column is the pole verdict, and that belongs in a table (see the
-README, "what the scan cannot decide").
+The supplementary radius-by-channel scan is exported by ``logderiv_scan`` through
+``3-analyze/figures.py``. It retains all samples and does not rank radii.
 
 The ``l >= 3`` channel is drawn but not used to judge anything: for ``l >= 3`` the
 Bessel-box column of ``ld1.x`` is a numerical artefact (it moves ~0.23 Ry with the box
