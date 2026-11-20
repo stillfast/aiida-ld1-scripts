@@ -1,0 +1,4 @@
+output/
+structures.json
+__pycache__/
+*.pyc

@@ -266,3 +266,11 @@ the retrieved `ld1.x` output including `ld1.dlog`, `ld1.test` and the wavefuncti
 ## License
 
 MIT.
+
+
+## Manuscript crystal-structure drawings
+
+The title-free alpha/beta/gamma geometry drawing method and
+standalone Python plotter are in
+[examples/uranium-crystal-figures](examples/uranium-crystal-figures/README.md).
+This example does not change the pseudopotential analysis pipeline.
