@@ -55,6 +55,7 @@ def _matplotlib():
     # axis types.  Thin spines, outward ticks, small minor ticks -- that is what makes a
     # matplotlib default look like a printed figure rather than a screenshot.
     plt.rcParams.update({
+        'font.family': 'sans-serif', 'font.sans-serif': ['DejaVu Sans'],
         'font.size': 9.5, 'axes.labelsize': 9.5, 'axes.titlesize': 9.5,
         'xtick.labelsize': 8.5, 'ytick.labelsize': 8.5,
         'legend.fontsize': 7.8, 'legend.frameon': False,
@@ -96,7 +97,7 @@ def _save(figure, out_base: Path, plt, formats: Sequence[str]) -> Path:
         for child in parent.child_axes:
             extra.extend(child.get_default_bbox_extra_artists() or [])
     for suffix in formats:
-        figure.savefig(f'{out_base}.{suffix}', dpi=300, bbox_inches='tight',
+        figure.savefig(f'{out_base}.{suffix}', dpi=plt.rcParams['savefig.dpi'], bbox_inches='tight',
                        pad_inches=0.035, bbox_extra_artists=extra or None)
     plt.close(figure)
     return out_base
@@ -122,14 +123,17 @@ def _sample(grid, count: int = 34, *, logarithmic: bool = False):
 
 
 def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
-                  xscale: str = 'linear', xlim=None, pseudo_line: bool = False,
+                  xscale: str = 'linear', xlim=None, pseudo_line: bool = True,
                   log_ordinate: bool = False,
                   formats: Sequence[str] = ('png',)) -> Optional[Path]:
     """AE vs pseudo radial functions, in the style of Torres & Kaloni Fig. 2 (left).
 
-    All-electron orbitals are **solid lines**, pseudo-orbitals **open symbols** (a dashed
-    line would hide underneath the solid one exactly where the two have to coincide), and
-    each pseudized channel gets a vertical dotted line at its ``rcut``.  No title: the axes
+    The no-database radial redraw exports fig_radial_logx.png (600 dpi),
+    fig_radial_logx.pdf and fig_radial_logx.svg through radial_figure.make_figure.
+
+    All-electron orbitals are **solid lines**; pseudo-orbitals use **open circles and
+    dashed lines** by default. A separate method legend identifies AE/PS independently
+    of orbital colour. Each pseudized channel gets a vertical dotted line at its ``rcut``.  No title: the axes
     are labelled and the legend carries the ``rcut`` values.
 
     Only the pseudized channels are drawn; the all-electron run also writes core states
@@ -143,13 +147,16 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
     on the zero line by construction, which is the honest picture of that range.
     """
     import numpy as np
+    from matplotlib.lines import Line2D
 
     directory = Path(directory)
     ae_file, ps_file = directory / 'ld1.wfc', directory / 'ld1ps.wfc'
     if not (ae_file.is_file() and ps_file.is_file()):
         return None
     ae_labels, grid, ae_values = analysis.read_wfc(ae_file)
-    ps_labels, _, ps_values, _aligned = analysis.read_wfc_halves(ps_file)
+    ps_labels, ps_grid, ps_values, _aligned = analysis.read_wfc_halves(ps_file)
+    if not np.array_equal(grid, ps_grid):
+        raise ValueError('AE and PS radial grids must match; no interpolation is applied.')
 
     figure, axis = plt.subplots(figsize=(6.2, 3.9))
     logarithmic = str(xscale).lower() == 'log'
@@ -201,7 +208,23 @@ def figure_radial(plt, directory: str | Path, out_base: Path, *, rcuts=None,
         axis.set_xlim(0.0, high)
     axis.axhline(0.0, color='0.85', lw=0.5, zorder=0)
     _polish(axis)
-    axis.legend(loc='upper right', frameon=False)
+    orbital_legend = axis.legend(loc='upper right', frameon=False)
+    axis.add_artist(orbital_legend)
+    method_handles = [
+        Line2D([], [], color='0.2', lw=1.4, linestyle='-', label='AE'),
+        Line2D([], [], color='0.2', lw=1.0,
+               linestyle='--' if pseudo_line else 'None', marker='o',
+               markerfacecolor='none', markersize=3.3, markeredgewidth=0.85, label='PS'),
+    ]
+    axis.legend(handles=method_handles, loc='upper left', frameon=False)
+    figure.canvas.draw()
+    try:
+        from audit_panel_alignment import require_matplotlib_panel_alignment
+    except ImportError:
+        pass  # One plot area; alignment is not applicable without optional QA tooling.
+    else:
+        require_matplotlib_panel_alignment(
+            figure, json_out=Path(str(out_base) + '-alignment.json'))
     return _save(figure, Path(out_base), plt, formats)
 
 

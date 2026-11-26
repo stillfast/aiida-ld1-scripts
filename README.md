@@ -173,7 +173,7 @@ previous files are kept as `*.bak`):
 | element | convention |
 |---|---|
 | all-electron curve | **solid line** |
-| pseudo-orbital | **open symbols** (radial) / **dotted line** (log derivative) |
+| pseudo-orbital | **open circles and dashed lines** (radial) / **dotted line** (log derivative) |
 | projectors | one curve per `beta`, colour by `l`; channels with two projectors (6S/7S, 6P/6P′) use solid vs dashed |
 | pseudization radius | vertical **dotted** line, one per channel, with `rc` in bohr |
 | colour | Okabe–Ito, one fixed colour per `l` channel; AE/PS never distinguished by colour |
@@ -274,3 +274,25 @@ The title-free alpha/beta/gamma geometry drawing method and
 standalone Python plotter are in
 [examples/uranium-crystal-figures](examples/uranium-crystal-figures/README.md).
 This example does not change the pseudopotential analysis pipeline.
+
+## AE/PS radial-wavefunction redraw
+
+```bash
+python -m pip install numpy matplotlib pyyaml
+python 3-analyze/figures.py --radial-only
+```
+No AiiDA profile or QE installation is required. This route reads the committed
+SQLite-format AiiDA archive, verifies the wavefunction object hashes, and refuses
+ambiguous generation results. The source archive and calculation outputs are unchanged.
+
+AE is a solid line; PS uses a dashed line and hollow circles. A black AE/PS legend
+explains the methods; orbital colours and cutoff radii remain in the separate
+orbital legend. Vertical dotted lines mark pseudization radii. Every curve retains
+all displayed radial-grid samples; only the circle markers are spaced for legibility.
+The original phase alignment, amplitudes, logarithmic 0.01–100 bohr axis and signed
+ordinate are retained. These are deterministic wavefunctions, so uncertainty bars
+are inapplicable.
+
+Outputs: data/fig_radial_logx.png (600 dpi), .pdf and editable-text .svg;
+data/fig_radial.png is the linear-axis companion. The metadata JSON records input
+checksums and display settings. Figure numbers are assigned by the manuscript.

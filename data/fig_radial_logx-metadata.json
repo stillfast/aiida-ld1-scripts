@@ -1,0 +1,35 @@
+{
+  "generation_uuids": [
+    "701d54d4-fdbd-4c35-81ff-a50e5282b4f8",
+    "ade07a56-1c2a-455c-bc57-741efcb9114c"
+  ],
+  "input_sha256": {
+    "ld1.wfc": "579973d0f61179d86d6f5fb83528d8481a0c9abfb207b6b5c447c46ea8989d6c",
+    "ld1ps.wfc": "1f51e9ca5dbdf0ca792ee982cfa6dd545f5f7c2c3a2a8ae1fce272b937e39a66"
+  },
+  "archive_sha256": "0c2a91869b9ff9d5d718b10851ad7bbacdf4b365578a823afd04510bf753bceb",
+  "summary_sha256": "c34de4eed8e691f45211d40872ad3cd9ad37da647d072d9deb2f460030fab861",
+  "orbitals": [
+    "5F",
+    "6S",
+    "6P",
+    "6D",
+    "7S"
+  ],
+  "grid_points_per_curve": 1291,
+  "display": {
+    "xscale": "log",
+    "xlim_bohr": [
+      0.01,
+      100
+    ],
+    "ordinate": "signed u(r) = r R(r), original amplitudes",
+    "AE": "solid",
+    "PS": "dashed + hollow circles",
+    "cutoff": "vertical dotted",
+    "marker_target_count": 34,
+    "continuous_line": "all visible samples",
+    "dpi": 600
+  },
+  "uncertainty": "Not applicable: deterministic reference wavefunctions."
+}

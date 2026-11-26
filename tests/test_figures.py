@@ -1,7 +1,7 @@
 """The figures must follow the paper's conventions and must not clip their labels.
 
 Conventions (Torres & Kaloni 2020, Figs. 2-3): all-electron = **solid line**, pseudo =
-**open symbols** (radial) or **dotted line** (log derivative); a vertical dotted line at
+**open symbols and dashed lines** (radial) or **dotted line** (log derivative); a vertical dotted line at
 every pseudization radius; the pole correspondence shown explicitly.  The labels are
 checked against the figure's *tight* bounding box, which is what ``bbox_inches='tight'``
 uses when saving -- an earlier version of the rlderiv figure cut its ylabel and title.
@@ -141,6 +141,11 @@ def test_radial_uses_solid_lines_and_open_symbols(captured):
     markers = [line.get_marker() for line in axes.get_lines()]
     open_symbol_series = [line for line in axes.get_lines() if line.get_marker() == 'o']
     assert len(open_symbol_series) == 2                       # 6S and 5F only
+    dashed = [line for line in axes.get_lines() if line.get_linestyle() == '--']
+    assert len(dashed) == 2
+    for line in dashed:
+        assert len(line.get_xdata()) == 200       # full visible grid, not marker subsampling
+    assert [text.get_text() for text in axes.get_legend().get_texts()] == ['AE', 'PS']
     assert all(line.get_markerfacecolor() in ('none', 'None', (0, 0, 0, 0))
                for line in open_symbol_series)
     vertical = [line for line in axes.get_lines()

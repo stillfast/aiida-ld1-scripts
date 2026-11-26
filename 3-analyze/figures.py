@@ -25,6 +25,11 @@ def main():
     parser.add_argument('--out', default=None)
     parser.add_argument('--paper', default=None,
                         help="also write fig3_1_radial.* and fig3_3_logderiv.* here")
+    parser.add_argument('--radial-only', action='store_true',
+                        help='redraw AE/PS wavefunctions from the committed archive, without AiiDA')
+    parser.add_argument('--archive', type=pathlib.Path,
+                        default=ROOT / 'data/aiida-ld1-6p25.aiida',
+                        help='AiiDA SQLite archive used by --radial-only')
     parser.add_argument('--scan-only', action='store_true',
                         help='redraw S1 without AiiDA; default input: tests/data/rlderiv_scan')
     parser.add_argument('--scan-root', type=pathlib.Path,
@@ -36,6 +41,13 @@ def main():
         parser.error('--jump-threshold must be positive and finite.')
 
     out = pathlib.Path(arguments.out) if arguments.out else ROOT / 'data'
+    if arguments.scan_only and arguments.radial_only:
+        parser.error('--scan-only and --radial-only are mutually exclusive.')
+    if arguments.radial_only:
+        from aiida_ld1_scripts.radial_figure import make_figure
+        make_figure(arguments.archive, out)
+        print(f'wrote {out}/fig_radial_logx.{{png,pdf,svg}} and fig_radial.png')
+        return
     if arguments.scan_only:
         scan_root = arguments.scan_root or ROOT / 'tests/data/rlderiv_scan'
         logderiv_scan.make_figure(scan_root, out, arguments.jump_threshold)
